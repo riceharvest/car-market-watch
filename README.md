@@ -65,7 +65,7 @@ pnpm ingest:live
 pnpm build
 ```
 
-The live runner currently uses public search-page payloads from AutoScout24, Marktplaats, and 2dehands. Gaspedaal is reachable but not normalized yet, Kleinanzeigen returned 403 from this environment, and mobile.de stays official-API-only.
+The live runner currently uses public search-page payloads from AutoScout24, Marktplaats, and 2dehands. It expands configured searches across up to 8 result pages by default, with `SCRAPER_PAGE_COUNT`, `SCRAPER_REQUEST_DELAY_MS`, and `SCRAPER_MAX_LISTINGS_PER_SEARCH_SOURCE` available for manual runs. Gaspedaal is reachable but not normalized yet, Kleinanzeigen returned 403 from this environment, and mobile.de stays official-API-only.
 
 ## Deploy on Vercel
 

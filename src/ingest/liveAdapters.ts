@@ -3,6 +3,10 @@ import type { ListingAdapter, RawListingObservation } from './types';
 
 const USER_AGENT = process.env.SCRAPER_USER_AGENT ?? 'CarMarketWatchBot/0.1 (+private research; low-rate cached market snapshot)';
 const REQUEST_TIMEOUT_MS = 25_000;
+const DEFAULT_SEARCH_PAGE_COUNT = 8;
+const MAX_SEARCH_PAGE_COUNT = 20;
+const DEFAULT_MAX_LISTINGS_PER_SEARCH_SOURCE = 500;
+const REQUEST_DELAY_MS = Number.parseInt(process.env.SCRAPER_REQUEST_DELAY_MS ?? '400', 10);
 
 export type LiveAdapterResult = {
   adapter: ListingAdapter;
@@ -140,19 +144,20 @@ function attrValue(item: Record<string, unknown>, key: string): unknown {
   return found?.value;
 }
 
-function matchesSearch(listing: LiveObservationPayload, search: SavedSearch): boolean {
+export function isSearchMatchForLiveListing(listing: LiveObservationPayload, search: SavedSearch): boolean {
   if (listing.make.toLowerCase() !== search.make.toLowerCase()) return false;
   if (!listing.model.toLowerCase().includes(search.model.toLowerCase())) return false;
   if (!search.countries.includes(listing.country)) return false;
   if (search.minYear !== undefined && listing.year < search.minYear) return false;
   if (search.maxYear !== undefined && listing.year > search.maxYear) return false;
   if (search.maxMileageKm !== undefined && listing.mileageKm > search.maxMileageKm) return false;
-  if (search.minPriceEur !== undefined && listing.priceEur < search.minPriceEur) return false;
+  const minimumPlausibleCarPriceEur = search.minPriceEur ?? 1000;
+  if (listing.priceEur < minimumPlausibleCarPriceEur) return false;
   if (search.maxPriceEur !== undefined && listing.priceEur > search.maxPriceEur) return false;
   if (search.fuels !== undefined && !search.fuels.includes(listing.fuel)) return false;
   if (search.transmissions !== undefined && !search.transmissions.includes(listing.transmission)) return false;
   if (search.sellerTypes !== undefined && !search.sellerTypes.includes(listing.sellerType)) return false;
-  return listing.priceEur > 0 && listing.mileageKm > 0;
+  return listing.mileageKm > 0;
 }
 
 function sourceUrl(source: MarketSource, pathOrUrl: string): string {
@@ -170,6 +175,59 @@ function autoscoutCountryUrls(url: string, countries: CountryCode[]): string[] {
     .map((country) => cyByCountry[country])
     .filter((cy): cy is string => Boolean(cy))
     .map((cy) => url.replace(/([?&]cy=)[^&]+/, `$1${cy}`));
+}
+
+function configuredPageCount(): number {
+  const parsed = Number.parseInt(process.env.SCRAPER_PAGE_COUNT ?? String(DEFAULT_SEARCH_PAGE_COUNT), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_SEARCH_PAGE_COUNT;
+  return Math.min(parsed, MAX_SEARCH_PAGE_COUNT);
+}
+
+function configuredMaxListingsPerSearchSource(): number {
+  const parsed = Number.parseInt(process.env.SCRAPER_MAX_LISTINGS_PER_SEARCH_SOURCE ?? String(DEFAULT_MAX_LISTINGS_PER_SEARCH_SOURCE), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_MAX_LISTINGS_PER_SEARCH_SOURCE;
+  return parsed;
+}
+
+function addSearchParam(url: string, key: string, value: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set(key, value);
+  return parsed.toString();
+}
+
+function withPathPage(url: string, page: number): string {
+  const parsed = new URL(url);
+  const cleanPath = parsed.pathname.replace(/\/p\/\d+\/?$/, '').replace(/\/$/, '');
+  parsed.pathname = `${cleanPath}/p/${page}/`;
+  return parsed.toString();
+}
+
+export function buildPaginatedSearchUrls(source: MarketSource, url: string, pageCount = configuredPageCount()): string[] {
+  const urls: string[] = [];
+  for (let page = 1; page <= Math.max(1, pageCount); page += 1) {
+    if (page === 1) {
+      urls.push(url);
+    } else if (source === 'autoscout24') {
+      urls.push(addSearchParam(url, 'page', String(page)));
+    } else if (source === 'marktplaats' || source === '2dehands') {
+      urls.push(withPathPage(url, page));
+    } else {
+      urls.push(url);
+    }
+  }
+  return Array.from(new Set(urls));
+}
+
+function dedupeObservationsBySourceId(observations: LiveListingObservation[]): LiveListingObservation[] {
+  const seen = new Set<string>();
+  const deduped: LiveListingObservation[] = [];
+  for (const observation of observations) {
+    const key = `${observation.source}:${observation.sourceListingId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(observation);
+  }
+  return deduped;
 }
 
 function normalizeTitleMakeModel(title: string, fallbackMake: string, fallbackModel: string): Pick<LiveObservationPayload, 'make' | 'model'> {
@@ -209,19 +267,23 @@ function createAdapter(source: MarketSource, parse: (html: string, search: Saved
     async fetchSearch(search) {
       const url = search.queryUrlBySource[source];
       if (!url) return [];
-      const urls = source === 'autoscout24' ? autoscoutCountryUrls(url, search.countries) : [url];
+      const urls = (source === 'autoscout24' ? autoscoutCountryUrls(url, search.countries) : [url]).flatMap((sourceSearchUrl) => buildPaginatedSearchUrls(source, sourceSearchUrl));
       const observations: LiveListingObservation[] = [];
       for (const sourceSearchUrl of urls) {
-        await sleep(750);
+        await sleep(REQUEST_DELAY_MS);
         try {
           const html = await fetchHtml(sourceSearchUrl);
-          observations.push(...parse(html, search, new Date().toISOString(), sourceSearchUrl));
+          const parsed = parse(html, search, new Date().toISOString(), sourceSearchUrl);
+          if (parsed.length === 0 && observations.length > 0) break;
+          observations.push(...parsed);
         } catch (error) {
           if (observations.length === 0) throw error;
           console.warn(`${source} partial live ingestion skipped ${sourceSearchUrl}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
-      return observations.filter((raw) => matchesSearch(raw.payload, search)).slice(0, 45);
+      return dedupeObservationsBySourceId(observations)
+        .filter((raw) => isSearchMatchForLiveListing(raw.payload, search))
+        .slice(0, configuredMaxListingsPerSearchSource());
     },
     normalize(raw) {
       return {

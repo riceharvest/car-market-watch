@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { autoscout24LiveAdapter, marktplaatsLiveAdapter, tweedehandsLiveAdapter } from '../src/ingest/liveAdapters';
+import { savedSearches } from '../src/data/searches';
+import { autoscout24LiveAdapter, buildPaginatedSearchUrls, isSearchMatchForLiveListing, marktplaatsLiveAdapter, tweedehandsLiveAdapter } from '../src/ingest/liveAdapters';
 import type { SavedSearch } from '../src/types';
 
 const search: SavedSearch = {
@@ -56,5 +57,48 @@ describe('live marketplace parsers', () => {
       'marktplaats',
       '2dehands',
     ]);
+  });
+
+  it('expands reachable marketplace searches across multiple result pages', () => {
+    expect(buildPaginatedSearchUrls('autoscout24', 'https://www.autoscout24.nl/lst/volkswagen/golf?atype=C&cy=NL', 3)).toEqual([
+      'https://www.autoscout24.nl/lst/volkswagen/golf?atype=C&cy=NL',
+      'https://www.autoscout24.nl/lst/volkswagen/golf?atype=C&cy=NL&page=2',
+      'https://www.autoscout24.nl/lst/volkswagen/golf?atype=C&cy=NL&page=3',
+    ]);
+    expect(buildPaginatedSearchUrls('marktplaats', 'https://www.marktplaats.nl/l/auto-s/volkswagen/q/golf/', 3)).toEqual([
+      'https://www.marktplaats.nl/l/auto-s/volkswagen/q/golf/',
+      'https://www.marktplaats.nl/l/auto-s/volkswagen/q/golf/p/2/',
+      'https://www.marktplaats.nl/l/auto-s/volkswagen/q/golf/p/3/',
+    ]);
+    expect(buildPaginatedSearchUrls('2dehands', 'https://www.2dehands.be/l/auto-s/volkswagen/q/golf/', 2)).toEqual([
+      'https://www.2dehands.be/l/auto-s/volkswagen/q/golf/',
+      'https://www.2dehands.be/l/auto-s/volkswagen/q/golf/p/2/',
+    ]);
+  });
+
+  it('rejects implausible placeholder prices from marketplace payloads', () => {
+    expect(
+      isSearchMatchForLiveListing(
+        {
+          title: 'Volkswagen Golf placeholder',
+          make: 'Volkswagen',
+          model: 'Golf',
+          priceEur: 1,
+          mileageKm: 90000,
+          year: 2019,
+          fuel: 'petrol',
+          transmission: 'manual',
+          location: 'Amsterdam',
+          country: 'NL',
+          sellerType: 'dealer',
+        },
+        search,
+      ),
+    ).toBe(false);
+  });
+
+  it('tracks a broad enough live search set to produce useful market coverage', () => {
+    expect(savedSearches.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(savedSearches.map((item) => item.model)).size).toBeGreaterThanOrEqual(6);
   });
 });
