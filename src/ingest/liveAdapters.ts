@@ -3,7 +3,7 @@ import type { ListingAdapter, RawListingObservation } from './types';
 
 const USER_AGENT = process.env.SCRAPER_USER_AGENT ?? 'CarMarketWatchBot/0.1 (+private research; low-rate cached market snapshot)';
 const REQUEST_TIMEOUT_MS = 25_000;
-const DEFAULT_SEARCH_PAGE_COUNT = 8;
+const DEFAULT_SEARCH_PAGE_COUNT = 3;
 const MAX_SEARCH_PAGE_COUNT = 20;
 const DEFAULT_MAX_LISTINGS_PER_SEARCH_SOURCE = 500;
 const REQUEST_DELAY_MS = Number.parseInt(process.env.SCRAPER_REQUEST_DELAY_MS ?? '400', 10);

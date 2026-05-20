@@ -98,7 +98,8 @@ describe('live marketplace parsers', () => {
   });
 
   it('tracks a broad enough live search set to produce useful market coverage', () => {
-    expect(savedSearches.length).toBeGreaterThanOrEqual(8);
-    expect(new Set(savedSearches.map((item) => item.model)).size).toBeGreaterThanOrEqual(6);
+    expect(savedSearches.length).toBeGreaterThanOrEqual(40);
+    expect(new Set(savedSearches.map((item) => item.model)).size).toBeGreaterThanOrEqual(38);
+    expect(savedSearches.every((search) => search.queryUrlBySource.autoscout24 && search.queryUrlBySource.marktplaats && search.queryUrlBySource['2dehands'])).toBe(true);
   });
 });
