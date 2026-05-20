@@ -1,14 +1,30 @@
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildMarketSnapshot } from '../src/domain/snapshot';
+import type { IngestionSnapshot } from '../src/ingest/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const outputPath = resolve(root, 'public/data/market-snapshot.json');
+const ingestionSnapshotPath = resolve(root, process.env.INGESTION_SNAPSHOT_PATH ?? 'artifacts/ingestion/latest-live-ingestion.json');
+
+async function loadIngestedListings(): Promise<IngestionSnapshot | null> {
+  try {
+    const raw = await readFile(ingestionSnapshotPath, 'utf8');
+    return JSON.parse(raw) as IngestionSnapshot;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
 
 const generatedAt = process.env.SNAPSHOT_GENERATED_AT ?? new Date().toISOString();
-const snapshot = buildMarketSnapshot({ generatedAt });
+const ingestionSnapshot = await loadIngestedListings();
+const snapshot = buildMarketSnapshot({
+  generatedAt,
+  listings: ingestionSnapshot?.listings.length ? ingestionSnapshot.listings : undefined,
+});
 
 await mkdir(dirname(outputPath), { recursive: true });
 const tmpPath = `${outputPath}.tmp`;
@@ -19,6 +35,8 @@ console.log(
   JSON.stringify(
     {
       outputPath,
+      ingestionSnapshotPath: ingestionSnapshot?.listings.length ? ingestionSnapshotPath : null,
+      ingestionMode: ingestionSnapshot?.mode ?? 'sample-fixture-fallback',
       listingCount: snapshot.summary.listingCount,
       sourceCount: snapshot.summary.sourceCount,
       valuationCount: snapshot.valuations.length,

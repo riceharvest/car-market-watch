@@ -20,11 +20,12 @@ Vercel static app
 
 Manual/worker-side operations
   ├─ scrape smoke checks: pnpm scrape:smoke (manual only)
+  ├─ live allowlisted ingestion: pnpm ingest:live
   ├─ manual fixture ingestion: pnpm exec tsx scripts/run-ingestion.ts [--write]
   └─ future scheduled ingestion worker -> database/API -> dashboard
 ```
 
-The current app is a static frontend. It should be deployed on Vercel as a Vite app. Crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. The ingestion runner currently uses only local fixture data and must not be wired into Vercel builds.
+The current app is a static frontend. It should be deployed on Vercel as a Vite app. Live crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. `pnpm build` uses `artifacts/ingestion/latest-live-ingestion.json` when present; otherwise it falls back to local sample fixtures.
 
 ## Run locally
 
@@ -56,6 +57,15 @@ pnpm exec tsx scripts/run-ingestion.ts --search=search-vw-golf-15-tsi-benelux --
 ```
 
 `--write` creates `artifacts/ingestion/manual-fixture-snapshot.json` for local review. The runner has an explicit allowlist and performs no live external requests.
+
+Capture the current allowlisted live marketplace data manually:
+
+```bash
+pnpm ingest:live
+pnpm build
+```
+
+The live runner currently uses public search-page payloads from AutoScout24, Marktplaats, and 2dehands. Gaspedaal is reachable but not normalized yet, Kleinanzeigen returned 403 from this environment, and mobile.de stays official-API-only.
 
 ## Deploy on Vercel
 

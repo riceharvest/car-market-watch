@@ -35,6 +35,17 @@ export const sourceMetadata: SourceMetadata[] = [
     reliability: 'medium',
   },
   {
+    id: '2dehands',
+    label: '2dehands',
+    baseUrl: 'https://www.2dehands.be/',
+    countries: ['BE'],
+    access: 'html-smoke',
+    cadenceHours: 24,
+    robotsNote: 'Adevinta-family public HTML only; keep low request rates and stop on anti-abuse responses.',
+    fields: ['priceEur', 'mileageKm', 'year', 'fuel', 'transmission', 'sellerType'],
+    reliability: 'medium',
+  },
+  {
     id: 'kleinanzeigen',
     label: 'Kleinanzeigen',
     baseUrl: 'https://www.kleinanzeigen.de/',

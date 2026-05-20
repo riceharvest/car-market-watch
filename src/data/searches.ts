@@ -17,6 +17,7 @@ export const savedSearches: SavedSearch[] = [
       autoscout24: 'https://www.autoscout24.nl/lst/volkswagen/golf?atype=C&cy=NL&fregfrom=2018',
       gaspedaal: 'https://www.gaspedaal.nl/zoeken?merk=volkswagen&model=golf&bmin=2018',
       marktplaats: 'https://www.marktplaats.nl/l/auto-s/volkswagen/q/golf+1.5+tsi/',
+      '2dehands': 'https://www.2dehands.be/l/auto-s/volkswagen/q/golf+1.5+tsi/',
       kleinanzeigen: 'https://www.kleinanzeigen.de/s-autos/volkswagen-golf/k0c216',
     },
   },
@@ -33,8 +34,10 @@ export const savedSearches: SavedSearch[] = [
     transmissions: ['automatic'],
     sellerTypes: ['dealer'],
     queryUrlBySource: {
-      autoscout24: 'https://www.autoscout24.nl/lst/toyota/corolla?fuel=H&fregfrom=2019',
+      autoscout24: 'https://www.autoscout24.nl/lst/toyota/corolla?atype=C&cy=NL&fuel=2&fregfrom=2019',
       gaspedaal: 'https://www.gaspedaal.nl/zoeken?merk=toyota&model=corolla&brandstof=hybride',
+      marktplaats: 'https://www.marktplaats.nl/l/auto-s/toyota/q/corolla+hybrid/',
+      '2dehands': 'https://www.2dehands.be/l/auto-s/toyota/q/corolla+hybrid/',
     },
   },
 ];

@@ -6,15 +6,15 @@ This document separates resale listing sources from rental-rate sources. Rental-
 
 ## Tier 1: scrape-first
 
-- Gaspedaal.nl: high NL coverage, aggregator, search pages appear accessible.
-- AutoScout24 NL/BE/DE: rich listing pages and EU coverage; avoid private/disallowed GraphQL endpoints.
-- Marktplaats.nl: official API exists but requires registration/contact; search/detail HTML is usable with care.
-- 2dehands.be: same family as Marktplaats; useful Belgium coverage.
-- Kleinanzeigen.de: useful German private/dealer signal; HTML is scrapeable enough for first experiments.
+- AutoScout24 NL/BE/DE: live adapter enabled for public search-page `__NEXT_DATA__` payloads. The Golf search is expanded across NL/BE/DE via public country filters. Avoid private/disallowed GraphQL endpoints.
+- Marktplaats.nl: live adapter enabled for public search-page `__NEXT_DATA__` payloads. Official API exists but requires registration/contact; do not use blocked internal APIs.
+- 2dehands.be: live adapter enabled for public search-page `__NEXT_DATA__` payloads; useful Belgium coverage.
+- Gaspedaal.nl: high NL coverage, aggregator, search pages are reachable, but current React Flight payload is not normalized safely enough yet. Keep as smoke/source-strategy until a robust parser is added.
+- Kleinanzeigen.de: useful German private/dealer signal, but this environment currently receives 403. Do not bypass anti-abuse controls.
 
 ## Tier 2: API or skip
 
-- mobile.de: good official APIs exist, but account activation is required. Scraping search pages is blocked/disallowed.
+- mobile.de: good official APIs exist, but account activation is required. Scraping search pages is blocked/disallowed; use official credentials only.
 - RDW Open Data: not a price source, but essential enrichment for Dutch plates when available.
 
 ## Tier 3: later / avoid early

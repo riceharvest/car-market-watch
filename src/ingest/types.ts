@@ -20,8 +20,8 @@ export type ListingAdapter<TRaw extends RawListingObservation = RawListingObserv
 export type IngestionSnapshot = {
   schemaVersion: 1;
   generatedAt: string;
-  adapter: AdapterSource;
-  mode: 'manual-fixture';
+  adapter: AdapterSource | 'live-marketplaces';
+  mode: 'manual-fixture' | 'live-marketplaces';
   searchIds: string[];
   rawObservations: RawListingObservation[];
   listings: Listing[];

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "data:build": "tsx scripts/build-market-snapshot.ts",
+    "ingest:live": "tsx scripts/run-ingestion.ts --live --write",
     "scrape:smoke": "tsx scripts/scrape-smoke.ts"
   },
   "dependencies": {
