@@ -1,4 +1,4 @@
-import type { Confidence, Listing, RentalComparable, RentalEstimate, VehicleClass } from '../types';
+import type { Confidence, Listing, NetRentalEstimate, RentalComparable, RentalCostAssumptions, RentalEstimate, VehicleClass } from '../types';
 import { median } from './valuation';
 
 export type RentalUtilizationAssumptions = {
@@ -11,6 +11,20 @@ export const defaultRentalUtilizationAssumptions: RentalUtilizationAssumptions =
   weeklyBookedDays: 3,
   monthlyBookedDays: 12,
   annualBookedDays: 120,
+};
+
+export const defaultRentalCostAssumptions: RentalCostAssumptions = {
+  platformFeePct: 15,
+  insuranceMonthlyEur: 60,
+  cleaningPerBookingEur: 20,
+  maintenanceReservePct: 8,
+  taxReservePct: 12,
+  downtimeReservePct: 8,
+  averageBookingsPerMonth: 4,
+};
+
+type RentalYieldListing = Pick<Listing, 'id' | 'priceEur'> & {
+  landedCostEur?: number;
 };
 
 const compactMakes = new Set(['Volkswagen', 'Toyota', 'Ford', 'Opel', 'Renault', 'Peugeot', 'Hyundai', 'Kia']);
@@ -88,6 +102,57 @@ export function buildRentalEstimates(
   assumptions: RentalUtilizationAssumptions = defaultRentalUtilizationAssumptions,
 ): RentalEstimate[] {
   return listings.map((listing) => estimateRentalRevenue(listing, comps, assumptions));
+}
+
+export function estimateNetRentalRevenue(
+  listing: RentalYieldListing,
+  grossEstimate: RentalEstimate,
+  assumptions: RentalCostAssumptions = defaultRentalCostAssumptions,
+): NetRentalEstimate {
+  const annualGrossEur = grossEstimate.annualGrossEur;
+  const monthlyGrossEur = grossEstimate.monthlyGrossEur;
+  const landedCostEur = listing.landedCostEur ?? listing.priceEur;
+
+  const platformFeesEur = percentOf(annualGrossEur, assumptions.platformFeePct);
+  const insuranceEur = Math.round(assumptions.insuranceMonthlyEur * 12);
+  const cleaningEur = Math.round(assumptions.cleaningPerBookingEur * assumptions.averageBookingsPerMonth * 12);
+  const maintenanceReserveEur = percentOf(annualGrossEur, assumptions.maintenanceReservePct);
+  const taxReserveEur = percentOf(annualGrossEur, assumptions.taxReservePct);
+  const downtimeReserveEur = percentOf(annualGrossEur, assumptions.downtimeReservePct);
+  const netAnnualRentalEur = Math.round(
+    annualGrossEur -
+      platformFeesEur -
+      insuranceEur -
+      cleaningEur -
+      maintenanceReserveEur -
+      taxReserveEur -
+      downtimeReserveEur,
+  );
+  const netMonthlyRentalEur = Math.round(netAnnualRentalEur / 12);
+  const netRentalYieldOnLandedCostPct = landedCostEur > 0 ? Math.round((netAnnualRentalEur / landedCostEur) * 1000) / 10 : 0;
+
+  return {
+    listingId: grossEstimate.listingId,
+    annualGrossEur,
+    monthlyGrossEur,
+    platformFeesEur,
+    insuranceEur,
+    cleaningEur,
+    maintenanceReserveEur,
+    taxReserveEur,
+    downtimeReserveEur,
+    netAnnualRentalEur,
+    netMonthlyRentalEur,
+    netRentalYieldOnLandedCostPct,
+    landedCostEur,
+    assumptions,
+  };
+}
+
+export const buildNetRentalEstimate = estimateNetRentalRevenue;
+
+function percentOf(amountEur: number, pct: number): number {
+  return Math.round(amountEur * (pct / 100));
 }
 
 function adjustDailyRateForListing(listing: Listing, comp: RentalComparable): number {

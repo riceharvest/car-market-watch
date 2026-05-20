@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
+  AlertTriangle,
   Bell,
   Car,
   CheckCircle2,
@@ -10,14 +11,16 @@ import {
   Filter,
   Gauge,
   Globe2,
+  Info,
   Search,
   ShieldCheck,
   Sparkles,
   Target,
+  WalletCards,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { buildMarketSnapshot } from './domain/snapshot';
-import type { Listing, MarketSnapshot, MarketSource, Valuation } from './types';
+import type { DataQualityReport, ImportCostEstimate, Listing, MarketSnapshot, MarketSource, NetRentalEstimate, PurchaseDecision, Valuation } from './types';
 import './styles.css';
 
 const eur = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -26,6 +29,14 @@ const percent = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1, signD
 const percentPlain = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
 
 type EnrichedListing = { listing: Listing; valuation: Valuation; rentalEstimate?: unknown };
+type PurchaseCandidate = {
+  listing: Listing;
+  valuation: Valuation;
+  decision: PurchaseDecision;
+  importEstimate?: ImportCostEstimate;
+  netRentalEstimate?: NetRentalEstimate;
+  qualityReport?: DataQualityReport;
+};
 type SortKey = 'score' | 'price-low' | 'price-high' | 'newest' | 'delta';
 type RentalEstimate = {
   dailyEur?: number;
@@ -144,6 +155,20 @@ function readRentalEstimate(item: EnrichedListing): RentalEstimate | undefined {
   return { dailyEur, monthlyGrossEur, annualGrossEur, annualYieldPct, confidence, source };
 }
 
+function average(values: number[]): number | undefined {
+  if (values.length === 0) return undefined;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function formatPayback(months: number | null): string {
+  if (months === null || !Number.isFinite(months)) return 'n/a';
+  return `${Math.round(months)} mo`;
+}
+
+function verdictLabel(verdict: string): string {
+  return verdict.replace(/-/g, ' ');
+}
+
 function PendingValue({ label = 'Pending benchmark' }: { label?: string }) {
   return <span className="pending-value">{label}</span>;
 }
@@ -235,6 +260,7 @@ export default function App() {
   const [country, setCountry] = useState('all');
   const [verdict, setVerdict] = useState('all');
   const [sortBy, setSortBy] = useState<SortKey>('score');
+  const [selectedPurchaseId, setSelectedPurchaseId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,6 +313,64 @@ export default function App() {
         return b.valuation.dealScore - a.valuation.dealScore;
       });
   }, [country, enrichedListings, query, sortBy, source, verdict]);
+
+  const purchaseCandidates = useMemo(() => {
+    const listingById = new Map(snapshot.listings.map((item) => [item.id, item]));
+    const valuationById = new Map(snapshot.valuations.map((item) => [item.listingId, item.valuation]));
+    const importById = new Map(snapshot.importCostEstimates.map((item) => [item.listingId, item]));
+    const netRentalById = new Map(snapshot.netRentalEstimates.map((item) => [item.listingId, item]));
+    const qualityById = new Map(snapshot.dataQualityReports.map((item) => [item.listingId, item]));
+    return snapshot.purchaseDecisions
+      .flatMap((decision): PurchaseCandidate[] => {
+        const listing = listingById.get(decision.listingId);
+        const valuation = valuationById.get(decision.listingId);
+        if (!listing || !valuation) return [];
+        return [{
+          listing,
+          valuation,
+          decision,
+          importEstimate: importById.get(decision.listingId),
+          netRentalEstimate: netRentalById.get(decision.listingId),
+          qualityReport: qualityById.get(decision.listingId),
+        }];
+      })
+      .sort((a, b) => b.decision.purchaseScore - a.decision.purchaseScore);
+  }, [snapshot]);
+
+  const filteredPurchaseCandidates = useMemo(() => {
+    const filteredListingIds = new Set(filteredListings.map((item) => item.listing.id));
+    return purchaseCandidates.filter((item) => filteredListingIds.has(item.listing.id));
+  }, [filteredListings, purchaseCandidates]);
+
+  const selectedPurchaseCandidate = filteredPurchaseCandidates.find((item) => item.listing.id === selectedPurchaseId)
+    ?? filteredPurchaseCandidates[0]
+    ?? purchaseCandidates[0];
+
+  useEffect(() => {
+    if (!selectedPurchaseCandidate) return;
+    if (selectedPurchaseId !== selectedPurchaseCandidate.listing.id) {
+      setSelectedPurchaseId(selectedPurchaseCandidate.listing.id);
+    }
+  }, [selectedPurchaseCandidate, selectedPurchaseId]);
+
+  const countryPurchaseSummaries = useMemo(() => countries.map((countryCode) => {
+    const rows = purchaseCandidates.filter((item) => item.listing.country === countryCode);
+    const bestCandidate = rows[0];
+    const averageListedPrice = average(rows.map((item) => item.listing.priceEur));
+    const averageLandedCost = average(rows.map((item) => item.decision.landedCostEur));
+    const averageYield = average(rows.map((item) => item.decision.netRentalYieldPct));
+    const averageComplexity = average(rows.map((item) => item.decision.importComplexityScore));
+    return {
+      country: countryCode,
+      count: rows.length,
+      bestCandidate,
+      averageListedPrice,
+      averageLandedCost,
+      averageYield,
+      averageComplexity,
+      manualBpmCount: rows.filter((item) => item.importEstimate?.needsManualBpm).length,
+    };
+  }).filter((item) => item.count > 0), [countries, purchaseCandidates]);
 
   const best = filteredListings[0] ?? enrichedListings[0];
   const averagePrice = Math.round(filteredListings.reduce((sum, item) => sum + item.listing.priceEur, 0) / Math.max(1, filteredListings.length));
@@ -430,6 +514,160 @@ export default function App() {
           detail={bestRentalYield ? `${bestRentalYield.item.listing.make} ${bestRentalYield.item.listing.model} · ${eur.format(bestRentalYield.item.listing.priceEur)}` : 'No rental ROI estimate yet'}
           tone="good"
         />
+      </section>
+
+      <section className="panel purchase-panel">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow"><WalletCards size={16} /> purchase decision</p>
+            <h2>Which car should I buy?</h2>
+          </div>
+          <p>Ranks filtered candidates by landed cost, Dutch market upside, net rental return, payback, import complexity and data confidence.</p>
+        </div>
+        <div className="purchase-layout">
+          <div className="purchase-ranking">
+            <div className="table-scroll">
+              <table className="purchase-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Car / source</th>
+                    <th>Ask</th>
+                    <th>Landed NL</th>
+                    <th>NL delta</th>
+                    <th>Net yield</th>
+                    <th>Payback</th>
+                    <th>Score</th>
+                    <th>Verdict</th>
+                    <th>Top reasons / blockers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPurchaseCandidates.map((candidate, index) => {
+                    const { listing, decision } = candidate;
+                    const selected = selectedPurchaseCandidate?.listing.id === listing.id;
+                    const notes = [...decision.blockers.slice(0, 1), ...decision.reasons.slice(0, 2)].slice(0, 3);
+                    return (
+                      <tr
+                        key={`purchase-${listing.id}`}
+                        className={selected ? 'selected-row' : undefined}
+                        onClick={() => setSelectedPurchaseId(listing.id)}
+                      >
+                        <td><strong>#{index + 1}</strong></td>
+                        <td><strong>{listing.make} {listing.model}</strong><span>{formatSource(listing.source)} · {listing.country} · {listing.year} · {listing.location}</span></td>
+                        <td>{eur.format(listing.priceEur)}</td>
+                        <td>{eur.format(decision.landedCostEur)}</td>
+                        <td className={decision.landedCostDeltaToDutchMarketPct <= 0 ? 'positive' : 'negative'}>{percent.format(decision.landedCostDeltaToDutchMarketPct)}%</td>
+                        <td>{percentPlain.format(decision.netRentalYieldPct)}%</td>
+                        <td>{formatPayback(decision.paybackMonths)}</td>
+                        <td><strong>{decision.purchaseScore}</strong><span>conf {decision.dataConfidenceScore}</span></td>
+                        <td><span className={`purchase-verdict ${decision.verdict}`}>{verdictLabel(decision.verdict)}</span></td>
+                        <td className="reason-cell">{notes.length > 0 ? notes.map((note) => <span key={note}>{note}</span>) : <PendingValue label="No notes" />}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filteredPurchaseCandidates.length === 0 && <div className="empty-state"><Target size={20} /> No purchase decisions match the active filters.</div>}
+          </div>
+
+          {selectedPurchaseCandidate && (
+            <aside className="candidate-detail" aria-label="Selected purchase candidate details">
+              <div className="candidate-detail-header">
+                <span className={`purchase-verdict ${selectedPurchaseCandidate.decision.verdict}`}>{verdictLabel(selectedPurchaseCandidate.decision.verdict)}</span>
+                <strong>{selectedPurchaseCandidate.listing.title}</strong>
+                <p>{formatSource(selectedPurchaseCandidate.listing.source)} · {selectedPurchaseCandidate.listing.country} · {km.format(selectedPurchaseCandidate.listing.mileageKm)} km · {selectedPurchaseCandidate.listing.sellerType}</p>
+              </div>
+
+              <div className="detail-metric-grid">
+                <div><span>Landed cost</span><strong>{eur.format(selectedPurchaseCandidate.decision.landedCostEur)}</strong></div>
+                <div><span>Purchase score</span><strong>{selectedPurchaseCandidate.decision.purchaseScore}/100</strong></div>
+                <div><span>Net annual rental</span><strong>{eur.format(selectedPurchaseCandidate.decision.netAnnualRentalEur)}</strong></div>
+                <div><span>Payback</span><strong>{formatPayback(selectedPurchaseCandidate.decision.paybackMonths)}</strong></div>
+              </div>
+
+              <div className="detail-block">
+                <h3><CheckCircle2 size={17} /> Reasons to buy</h3>
+                <ul>
+                  {selectedPurchaseCandidate.decision.reasons.length > 0
+                    ? selectedPurchaseCandidate.decision.reasons.map((reason) => <li key={reason}>{reason}</li>)
+                    : <li>No positive purchase reasons were generated.</li>}
+                </ul>
+              </div>
+
+              <div className="detail-block warning">
+                <h3><AlertTriangle size={17} /> Blockers and warnings</h3>
+                <ul>
+                  {[...selectedPurchaseCandidate.decision.blockers, ...(selectedPurchaseCandidate.qualityReport?.warnings ?? [])].length > 0
+                    ? [...selectedPurchaseCandidate.decision.blockers, ...(selectedPurchaseCandidate.qualityReport?.warnings ?? [])].map((warning) => <li key={warning}>{warning}</li>)
+                    : <li>No blocking issues in the current snapshot.</li>}
+                </ul>
+              </div>
+
+              <div className="detail-block">
+                <h3><WalletCards size={17} /> Landed cost breakdown</h3>
+                {selectedPurchaseCandidate.importEstimate ? (
+                  <dl className="detail-list">
+                    <div><dt>Asking price</dt><dd>{eur.format(selectedPurchaseCandidate.listing.priceEur)}</dd></div>
+                    <div><dt>Transport</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.transportEur)}</dd></div>
+                    <div><dt>RDW + plates</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.rdwInspectionEur + selectedPurchaseCandidate.importEstimate.platesAndRegistrationEur)}</dd></div>
+                    <div><dt>BPM estimate</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.bpmEstimateEur)}{selectedPurchaseCandidate.importEstimate.needsManualBpm ? ' · manual check' : ''}</dd></div>
+                    <div><dt>VAT / duty / buffer</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.vatEstimateEur + selectedPurchaseCandidate.importEstimate.customsDutyEstimateEur + selectedPurchaseCandidate.importEstimate.adminBufferEur)}</dd></div>
+                    <div><dt>Region</dt><dd>{selectedPurchaseCandidate.importEstimate.region}</dd></div>
+                  </dl>
+                ) : <p className="muted-copy">No import estimate is available for this candidate.</p>}
+                {selectedPurchaseCandidate.importEstimate?.assumptions.length ? (
+                  <ul className="assumption-list">{selectedPurchaseCandidate.importEstimate.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
+                ) : null}
+              </div>
+
+              <div className="detail-block">
+                <h3><Info size={17} /> Rental and data quality</h3>
+                {selectedPurchaseCandidate.netRentalEstimate ? (
+                  <dl className="detail-list">
+                    <div><dt>Monthly gross</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.monthlyGrossEur)}</dd></div>
+                    <div><dt>Monthly net</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.netMonthlyRentalEur)}</dd></div>
+                    <div><dt>Net yield on landed cost</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.netRentalYieldOnLandedCostPct)}%</dd></div>
+                    <div><dt>Platform / reserves</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.platformFeePct)}% fee · {percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.downtimeReservePct)}% downtime</dd></div>
+                  </dl>
+                ) : <p className="muted-copy">No net rental estimate is available for this candidate.</p>}
+                <p className="quality-line">Quality: {selectedPurchaseCandidate.qualityReport?.confidence ?? 'unknown'} · completeness {selectedPurchaseCandidate.qualityReport?.completenessPct ?? selectedPurchaseCandidate.decision.dataConfidenceScore}%</p>
+                {selectedPurchaseCandidate.qualityReport?.missingCriticalFields.length ? (
+                  <p className="quality-line">Missing: {selectedPurchaseCandidate.qualityReport.missingCriticalFields.join(', ')}</p>
+                ) : null}
+              </div>
+              <a className="detail-link" href={selectedPurchaseCandidate.listing.url} target="_blank" rel="noreferrer">Open source listing</a>
+            </aside>
+          )}
+        </div>
+      </section>
+
+      <section className="country-import-grid" aria-label="Country and import comparison">
+        {countryPurchaseSummaries.map((summary) => (
+          <article className="country-card" key={summary.country}>
+            <div className="country-card-top">
+              <span>{summary.country}</span>
+              <strong>{summary.count} candidates</strong>
+            </div>
+            <dl>
+              <div><dt>Avg listed price</dt><dd>{summary.averageListedPrice ? eur.format(summary.averageListedPrice) : 'n/a'}</dd></div>
+              <div><dt>Avg landed NL</dt><dd>{summary.averageLandedCost ? eur.format(summary.averageLandedCost) : 'n/a'}</dd></div>
+              <div><dt>Avg net yield</dt><dd>{summary.averageYield ? `${percentPlain.format(summary.averageYield)}%` : 'n/a'}</dd></div>
+              <div><dt>Complexity</dt><dd>{summary.averageComplexity ? `${Math.round(summary.averageComplexity)}/100` : 'n/a'}</dd></div>
+            </dl>
+            <p className={summary.manualBpmCount > 0 || (summary.averageComplexity ?? 100) < 70 ? 'import-warning' : 'import-ok'}>
+              {summary.manualBpmCount > 0 || (summary.averageComplexity ?? 100) < 70
+                ? `${summary.manualBpmCount} need manual BPM/import review`
+                : 'Low import friction in current snapshot'}
+            </p>
+            {summary.bestCandidate && (
+              <button className="country-pick" onClick={() => setSelectedPurchaseId(summary.bestCandidate!.listing.id)}>
+                Best: {summary.bestCandidate.listing.make} {summary.bestCandidate.listing.model} · score {summary.bestCandidate.decision.purchaseScore}
+              </button>
+            )}
+          </article>
+        ))}
       </section>
 
       <section className="panel chart-panel">

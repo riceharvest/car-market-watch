@@ -20,10 +20,11 @@ Vercel static app
 
 Manual/worker-side operations
   ├─ scrape smoke checks: pnpm scrape:smoke (manual only)
+  ├─ manual fixture ingestion: pnpm exec tsx scripts/run-ingestion.ts [--write]
   └─ future scheduled ingestion worker -> database/API -> dashboard
 ```
 
-The current app is a static frontend. It should be deployed on Vercel as a Vite app. Crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces.
+The current app is a static frontend. It should be deployed on Vercel as a Vite app. Crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. The ingestion runner currently uses only local fixture data and must not be wired into Vercel builds.
 
 ## Run locally
 
@@ -47,6 +48,15 @@ Run source reachability checks manually only when needed:
 pnpm scrape:smoke
 ```
 
+Preview the manual-only ingestion skeleton against local sample data:
+
+```bash
+pnpm exec tsx scripts/run-ingestion.ts
+pnpm exec tsx scripts/run-ingestion.ts --search=search-vw-golf-15-tsi-benelux --write
+```
+
+`--write` creates `artifacts/ingestion/manual-fixture-snapshot.json` for local review. The runner has an explicit allowlist and performs no live external requests.
+
 ## Deploy on Vercel
 
 This repo includes `vercel.json` for a static Vite deployment:
@@ -57,7 +67,11 @@ This repo includes `vercel.json` for a static Vite deployment:
 - Output directory: `dist`
 - Node.js: `20.x`
 
-See the full operational checklist in [`docs/go-live-runbook.md`](docs/go-live-runbook.md).
+See the full operational checklist in [`docs/go-live-runbook.md`](docs/go-live-runbook.md). Storage and snapshot evolution is documented in [`docs/storage-strategy.md`](docs/storage-strategy.md).
+
+## BPM manual override workflow
+
+For non-NL import candidates, treat BPM as a purchase blocker until a manual or vetted calculator result is recorded. Add `bpmOverrideEur` to the listing data (or future admin form), keep the calculator/date/assumptions in notes, rebuild the snapshot, and verify the purchase decision no longer reports `needsManualBpm`. See [`docs/bpm-calculator-integration.md`](docs/bpm-calculator-integration.md) and [`docs/purchase-readiness-checklist.md`](docs/purchase-readiness-checklist.md).
 
 ## CI
 

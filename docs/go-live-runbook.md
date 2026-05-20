@@ -9,6 +9,8 @@ This runbook is for taking Car Market Watch from the current static Vite prototy
 - Required environment variables are present in `.env.example` and configured in Vercel as needed.
 - The deployment target is private/protected if the dashboard contains non-public search strategy, scraped data, or seller data.
 - Source-specific robots.txt, Terms of Service, and API availability have been reviewed before enabling any crawler beyond smoke checks.
+- Manual ingestion preview has been run with `pnpm exec tsx scripts/run-ingestion.ts`; use `--write` only when a local fixture snapshot artifact is needed.
+- Non-NL purchase candidates with `needsManualBpm` have a reviewed `bpmOverrideEur` or are blocked from purchase.
 
 ## 2. Vercel project import settings
 
@@ -24,7 +26,7 @@ Import the GitHub repository into Vercel with these settings:
 | Node.js Version | 20.x |
 | Package Manager | pnpm 9 |
 
-The repository includes `vercel.json`, so Vercel should pick up the build/output settings automatically. Keep the UI settings aligned with `vercel.json` to avoid surprises.
+The repository includes `vercel.json`, so Vercel should pick up the build/output settings automatically. Keep the UI settings aligned with `vercel.json` to avoid surprises. The Vercel build must not run `scripts/run-ingestion.ts`, smoke scraping, or future live crawlers; it should consume existing committed/static JSON only.
 
 ## 3. Environment variables
 
@@ -37,7 +39,7 @@ Current static UI builds without secrets. Configure these only when enabling the
 | `VITE_PUBLIC_APP_ENV` | Optional | Vercel | Safe client-side label such as `production` or `preview`; only `VITE_` variables are exposed to the Vite client bundle. |
 | `VITE_PUBLIC_SITE_URL` | Optional | Vercel | Canonical deployed app URL for links/metadata if the app starts using it. |
 
-For Vercel, add production values first, then preview values if they differ. Do not put crawler credentials or database secrets in `VITE_` variables.
+For Vercel, add production values first, then preview values if they differ. Do not put crawler credentials, database secrets, BPM provider keys, or worker tokens in `VITE_` variables.
 
 ## 4. First deploy
 
@@ -81,6 +83,15 @@ Optional source smoke check:
 - Review output for reachability and parser hints.
 - Do not schedule this workflow at high frequency; it touches third-party marketplaces.
 
+Manual fixture ingestion check:
+
+```bash
+pnpm exec tsx scripts/run-ingestion.ts
+pnpm exec tsx scripts/run-ingestion.ts --search=search-vw-golf-15-tsi-benelux --write
+```
+
+The runner is manual-fixture only and makes no external requests. The `--write` mode stores `artifacts/ingestion/manual-fixture-snapshot.json` for local review.
+
 ## 7. Scheduled data update and static snapshot strategy
 
 Do not use Vercel static deployments as the crawler runtime. Recommended production shape:
@@ -104,7 +115,21 @@ Suggested conservative cadence for MVP:
 - Disable a source automatically after repeated 403/429/CAPTCHA or parser failures.
 - Keep manual smoke separate from scheduled ingestion.
 
-## 8. Crawler legality, robots, and safety notes
+See [`storage-strategy.md`](storage-strategy.md) for the JSON artifact to future Neon/Postgres path.
+
+## 8. BPM manual override workflow
+
+BPM is a purchase blocker for non-NL imports until reviewed:
+
+1. Open the candidate listing and verify first registration date, fuel, CO2, mileage, and trim.
+2. Calculate BPM manually using an official or vetted calculator.
+3. Record `bpmOverrideEur`, calculator/date, and assumptions in listing notes or the future admin form.
+4. Rebuild snapshots and confirm `needsManualBpm` clears.
+5. Recheck BPM before final purchase; dashboard estimates are not tax advice.
+
+See [`bpm-calculator-integration.md`](bpm-calculator-integration.md) for integration research and guardrails.
+
+## 9. Crawler legality, robots, and safety notes
 
 - Review each target site's robots.txt and Terms of Service before crawling.
 - Prefer official APIs where available, especially mobile.de, RDW open data, commercial rental partner APIs, and any approved rental data providers.
@@ -125,15 +150,16 @@ Rental-source-specific notes:
 - Europcar, Hertz, and Avis class rates can be useful through travel/partner APIs or aggregators, but treat them as commercial benchmarks rather than owner income.
 - For every rental source, record the robots/ToS review date, allowed URL patterns, disallowed URL patterns, rate limit, data retention, and source type before enabling a worker.
 
-## 9. Rollback
+## 10. Rollback
 
 - Vercel: use Project -> Deployments -> previous successful deployment -> Promote to Production.
 - GitHub: revert the offending PR and let CI/build run again.
 - Data ingestion: stop the worker or scheduled workflow before rolling back parser code if it is producing bad data.
 
-## 10. Operational ownership
+## 11. Operational ownership
 
 - CI status: GitHub Actions `CI` workflow.
 - Manual source smoke: GitHub Actions `Scrape smoke` workflow.
+- Manual fixture ingestion: `pnpm exec tsx scripts/run-ingestion.ts`.
 - Frontend deployment: Vercel project deployments.
 - Future data worker: separate scheduled runtime with explicit owner, logs, and alerting.
