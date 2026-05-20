@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "pnpm run data:build && tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "data:build": "tsx scripts/build-market-snapshot.ts",
     "scrape:smoke": "tsx scripts/scrape-smoke.ts"
   },
   "dependencies": {
@@ -23,7 +25,8 @@
   "devDependencies": {
     "@types/node": "latest",
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "vitest": "latest"
   },
   "packageManager": "pnpm@9.0.0"
 }

@@ -1,4 +1,4 @@
-import type { Listing, Valuation } from '../types';
+import type { Listing, NormalizedValuationExport, Valuation } from '../types';
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -8,7 +8,7 @@ export function daysBetween(a: string, b: string): number {
 
 export function comparableListings(target: Listing, listings: Listing[]): Listing[] {
   return listings.filter((listing) => {
-    const sameCar = listing.make === target.make && listing.model === target.model;
+    const sameCar = listing.make.toLowerCase() === target.make.toLowerCase() && listing.model.toLowerCase() === target.model.toLowerCase();
     const yearClose = Math.abs(listing.year - target.year) <= 2;
     const mileageClose = Math.abs(listing.mileageKm - target.mileageKm) <= 40000;
     const sameFuel = listing.fuel === target.fuel || listing.fuel === 'unknown' || target.fuel === 'unknown';
@@ -41,6 +41,7 @@ export function valueListing(target: Listing, listings: Listing[], today = '2026
   return {
     marketMedianEur,
     comparableCount: comps.length,
+    comparableIds: comps.map((listing) => listing.id),
     priceDeltaEur,
     priceDeltaPct,
     daysOnMarket,
@@ -48,4 +49,17 @@ export function valueListing(target: Listing, listings: Listing[], today = '2026
     dealScore,
     verdict,
   };
+}
+
+export function buildValuationExports(listings: Listing[], today = '2026-05-20'): NormalizedValuationExport[] {
+  return listings.map((listing) => ({
+    listingId: listing.id,
+    source: listing.source,
+    make: listing.make,
+    model: listing.model,
+    year: listing.year,
+    priceEur: listing.priceEur,
+    mileageKm: listing.mileageKm,
+    valuation: valueListing(listing, listings, today),
+  }));
 }

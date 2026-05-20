@@ -8,10 +8,32 @@ export type MarketSource =
 
 export type Confidence = 'low' | 'medium' | 'high';
 
+export type CountryCode = 'NL' | 'BE' | 'DE' | 'FR';
+
+export type FuelType = 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'lpg' | 'unknown';
+
+export type Transmission = 'manual' | 'automatic' | 'unknown';
+
+export type SellerType = 'dealer' | 'private' | 'unknown';
+
+export type DealVerdict = 'undervalued' | 'fair' | 'expensive' | 'watch';
+
+export type SourceMetadata = {
+  id: MarketSource;
+  label: string;
+  baseUrl: string;
+  countries: CountryCode[];
+  access: 'html-smoke' | 'aggregator' | 'api' | 'manual';
+  cadenceHours: number;
+  robotsNote: string;
+  fields: Array<keyof Listing>;
+  reliability: Confidence;
+};
+
 export type Listing = {
   id: string;
   source: MarketSource;
-  country: 'NL' | 'BE' | 'DE' | 'FR';
+  country: CountryCode;
   url: string;
   title: string;
   make: string;
@@ -20,10 +42,10 @@ export type Listing = {
   priceEur: number;
   mileageKm: number;
   year: number;
-  fuel: 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'lpg' | 'unknown';
-  transmission: 'manual' | 'automatic' | 'unknown';
+  fuel: FuelType;
+  transmission: Transmission;
   location: string;
-  sellerType: 'dealer' | 'private' | 'unknown';
+  sellerType: SellerType;
   firstSeen: string;
   lastSeen: string;
   previousPriceEur?: number;
@@ -34,10 +56,83 @@ export type Listing = {
 export type Valuation = {
   marketMedianEur: number;
   comparableCount: number;
+  comparableIds: string[];
   priceDeltaEur: number;
   priceDeltaPct: number;
   daysOnMarket: number;
   pricePer10kKm: number;
   dealScore: number;
-  verdict: 'undervalued' | 'fair' | 'expensive' | 'watch';
+  verdict: DealVerdict;
+};
+
+export type NormalizedValuationExport = {
+  listingId: string;
+  source: MarketSource;
+  make: string;
+  model: string;
+  year: number;
+  priceEur: number;
+  mileageKm: number;
+  valuation: Valuation;
+};
+
+export type SavedSearch = {
+  id: string;
+  label: string;
+  make: string;
+  model: string;
+  countries: CountryCode[];
+  minYear?: number;
+  maxYear?: number;
+  maxMileageKm?: number;
+  minPriceEur?: number;
+  maxPriceEur?: number;
+  fuels?: FuelType[];
+  transmissions?: Transmission[];
+  sellerTypes?: SellerType[];
+  queryUrlBySource: Partial<Record<MarketSource, string>>;
+};
+
+export type AlertRule = {
+  id: string;
+  searchId: string;
+  enabled: boolean;
+  label: string;
+  conditions: {
+    verdicts?: DealVerdict[];
+    maxPriceDeltaPct?: number;
+    minDealScore?: number;
+    minPriceDropEur?: number;
+    maxDaysOnMarket?: number;
+  };
+  channels: Array<'dashboard' | 'email' | 'webhook'>;
+};
+
+export type WatchlistItem = {
+  id: string;
+  listingId: string;
+  savedSearchId: string;
+  priority: 'low' | 'medium' | 'high';
+  addedAt: string;
+  maxBidEur?: number;
+  notes?: string;
+};
+
+export type MarketSnapshot = {
+  schemaVersion: 1;
+  generatedAt: string;
+  sources: SourceMetadata[];
+  savedSearches: SavedSearch[];
+  alertRules: AlertRule[];
+  watchlist: WatchlistItem[];
+  listings: Listing[];
+  valuations: NormalizedValuationExport[];
+  summary: {
+    listingCount: number;
+    sourceCount: number;
+    searchCount: number;
+    watchlistCount: number;
+    bestDealListingId: string | null;
+    medianPriceEur: number;
+  };
 };
