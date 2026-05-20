@@ -6,6 +6,17 @@ export type MarketSource =
   | 'kleinanzeigen'
   | 'mobile-de-api';
 
+export type RentalSource =
+  | 'snappcar'
+  | 'getaround'
+  | 'turo'
+  | 'mywheels'
+  | 'greenwheels'
+  | 'sixt'
+  | 'europcar'
+  | 'hertz'
+  | 'avis';
+
 export type Confidence = 'low' | 'medium' | 'high';
 
 export type CountryCode = 'NL' | 'BE' | 'DE' | 'FR';
@@ -18,6 +29,8 @@ export type SellerType = 'dealer' | 'private' | 'unknown';
 
 export type DealVerdict = 'undervalued' | 'fair' | 'expensive' | 'watch';
 
+export type VehicleClass = 'mini' | 'compact' | 'midsize' | 'estate' | 'suv' | 'van' | 'premium';
+
 export type SourceMetadata = {
   id: MarketSource;
   label: string;
@@ -27,6 +40,20 @@ export type SourceMetadata = {
   cadenceHours: number;
   robotsNote: string;
   fields: Array<keyof Listing>;
+  reliability: Confidence;
+};
+
+export type RentalSourceMetadata = {
+  id: RentalSource;
+  label: string;
+  baseUrl: string;
+  countries: CountryCode[];
+  sourceType: 'peer-to-peer' | 'car-sharing' | 'commercial-fleet';
+  access: 'city-page-html' | 'api-partner' | 'paid-data-provider' | 'manual' | 'skip-scraping';
+  scrapePriority: 'primary' | 'benchmark' | 'skip';
+  cadenceHours?: number;
+  robotsNote: string;
+  feasibilityNote: string;
   reliability: Confidence;
 };
 
@@ -63,6 +90,49 @@ export type Valuation = {
   pricePer10kKm: number;
   dealScore: number;
   verdict: DealVerdict;
+};
+
+export type RentalComparable = {
+  id: string;
+  source: RentalSource;
+  sourceType: RentalSourceMetadata['sourceType'];
+  country: CountryCode;
+  city: string;
+  dailyRateEur: number;
+  vehicleClass: VehicleClass;
+  anchors: {
+    make?: string;
+    model?: string;
+    fuel: FuelType;
+    transmission: Transmission;
+    year: number;
+    mileageBandKm: {
+      min: number;
+      max: number;
+    };
+  };
+  confidence: Confidence;
+  availabilityNote: string;
+  feesNote: string;
+  observedAt: string;
+};
+
+export type RentalEstimate = {
+  listingId: string;
+  estimatedDailyRentEur: number;
+  weeklyGrossEur: number;
+  monthlyGrossEur: number;
+  annualGrossEur: number;
+  annualYieldPct: number;
+  utilizationAssumptions: {
+    weeklyBookedDays: number;
+    monthlyBookedDays: number;
+    annualBookedDays: number;
+  };
+  confidence: Confidence;
+  compCount: number;
+  comparableIds: string[];
+  basisNotes: string[];
 };
 
 export type NormalizedValuationExport = {
@@ -122,17 +192,23 @@ export type MarketSnapshot = {
   schemaVersion: 1;
   generatedAt: string;
   sources: SourceMetadata[];
+  rentalSources: RentalSourceMetadata[];
+  rentalComps: RentalComparable[];
   savedSearches: SavedSearch[];
   alertRules: AlertRule[];
   watchlist: WatchlistItem[];
   listings: Listing[];
   valuations: NormalizedValuationExport[];
+  rentalEstimates: RentalEstimate[];
   summary: {
     listingCount: number;
     sourceCount: number;
     searchCount: number;
     watchlistCount: number;
     bestDealListingId: string | null;
+    bestRentalYieldListingId: string | null;
     medianPriceEur: number;
+    rentalCompCount: number;
+    rentalEstimateCount: number;
   };
 };

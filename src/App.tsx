@@ -23,17 +23,41 @@ import './styles.css';
 const eur = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const km = new Intl.NumberFormat('nl-NL');
 const percent = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
+const percentPlain = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
 
-type EnrichedListing = { listing: Listing; valuation: Valuation };
+type EnrichedListing = { listing: Listing; valuation: Valuation; rentalEstimate?: unknown };
 type SortKey = 'score' | 'price-low' | 'price-high' | 'newest' | 'delta';
+type RentalEstimate = {
+  dailyEur?: number;
+  monthlyGrossEur?: number;
+  annualGrossEur?: number;
+  annualYieldPct?: number;
+  confidence?: string;
+  source?: string;
+};
 
 const fallbackSnapshot = buildMarketSnapshot({ generatedAt: '2026-05-20T00:00:00.000Z' });
 
 function enrichFromSnapshot(snapshot: MarketSnapshot): EnrichedListing[] {
   const valuationByListingId = new Map(snapshot.valuations.map((item) => [item.listingId, item.valuation]));
+  const snapshotRecord = asRecord(snapshot);
+  const rentalRows = Array.isArray(snapshotRecord?.rentalEstimates) ? snapshotRecord.rentalEstimates : [];
+  const rentalByListingId = new Map(
+    rentalRows
+      .map((item) => asRecord(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item?.listingId))
+      .map((item) => [String(item.listingId), item]),
+  );
   return snapshot.listings
-    .map((listing) => ({ listing, valuation: valuationByListingId.get(listing.id) }))
-    .filter((item): item is EnrichedListing => Boolean(item.valuation))
+    .flatMap((listing): EnrichedListing[] => {
+      const valuation = valuationByListingId.get(listing.id);
+      if (!valuation) return [];
+      return [{
+        listing,
+        valuation,
+        rentalEstimate: rentalByListingId.get(listing.id),
+      }];
+    })
     .sort((a, b) => b.valuation.dealScore - a.valuation.dealScore);
 }
 
@@ -61,6 +85,67 @@ function formatSource(source: MarketSource): string {
 
 function uniqueSorted<T extends string>(values: T[]): T[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+function numberFrom(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function stringFrom(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function readRentalEstimate(item: EnrichedListing): RentalEstimate | undefined {
+  const listingRecord = asRecord(item.listing);
+  const valuationRecord = asRecord(item.valuation);
+  const rootEstimate = asRecord(item.rentalEstimate);
+  const nested = rootEstimate
+    ?? asRecord(listingRecord?.rentalEstimate)
+    ?? asRecord(listingRecord?.rental)
+    ?? asRecord(valuationRecord?.rentalEstimate)
+    ?? asRecord(valuationRecord?.rental);
+
+  const dailyEur = numberFrom(nested?.dailyEur)
+    ?? numberFrom(nested?.dailyRateEur)
+    ?? numberFrom(nested?.estimatedDailyEur)
+    ?? numberFrom(nested?.estimatedDailyRentEur)
+    ?? numberFrom(nested?.estimatedDailyRentalEur)
+    ?? numberFrom(listingRecord?.estimatedDailyRentalEur)
+    ?? numberFrom(valuationRecord?.estimatedDailyRentalEur);
+  const monthlyGrossEur = numberFrom(nested?.monthlyGrossEur)
+    ?? numberFrom(nested?.estimatedMonthlyGrossEur)
+    ?? numberFrom(listingRecord?.estimatedMonthlyGrossEur)
+    ?? numberFrom(valuationRecord?.estimatedMonthlyGrossEur)
+    ?? (dailyEur ? Math.round(dailyEur * 20) : undefined);
+  const annualGrossEur = numberFrom(nested?.annualGrossEur)
+    ?? numberFrom(nested?.estimatedAnnualGrossEur)
+    ?? numberFrom(listingRecord?.estimatedAnnualGrossEur)
+    ?? numberFrom(valuationRecord?.estimatedAnnualGrossEur)
+    ?? (monthlyGrossEur ? Math.round(monthlyGrossEur * 12) : undefined);
+  const annualYieldPct = numberFrom(nested?.annualYieldPct)
+    ?? numberFrom(nested?.rentalYieldPct)
+    ?? numberFrom(listingRecord?.rentalYieldPct)
+    ?? numberFrom(valuationRecord?.rentalYieldPct)
+    ?? (annualGrossEur ? (annualGrossEur / item.listing.priceEur) * 100 : undefined);
+  const confidence = stringFrom(nested?.confidence)
+    ?? stringFrom(nested?.benchmarkConfidence)
+    ?? stringFrom(listingRecord?.rentalConfidence)
+    ?? stringFrom(valuationRecord?.rentalConfidence);
+  const source = stringFrom(nested?.source)
+    ?? stringFrom(nested?.benchmarkSource)
+    ?? stringFrom(listingRecord?.rentalSource)
+    ?? stringFrom(valuationRecord?.rentalSource);
+
+  if (!dailyEur && !monthlyGrossEur && !annualGrossEur && !annualYieldPct) return undefined;
+  return { dailyEur, monthlyGrossEur, annualGrossEur, annualYieldPct, confidence, source };
+}
+
+function PendingValue({ label = 'Pending benchmark' }: { label?: string }) {
+  return <span className="pending-value">{label}</span>;
 }
 
 function StatCard({
@@ -106,6 +191,7 @@ function SelectControl({
 
 function ListingCard({ item }: { item: EnrichedListing }) {
   const { listing, valuation } = item;
+  const rental = readRentalEstimate(item);
   const dropped = listing.previousPriceEur && listing.previousPriceEur > listing.priceEur;
   const priceMove = dropped ? listing.previousPriceEur! - listing.priceEur : 0;
 
@@ -129,6 +215,8 @@ function ListingCard({ item }: { item: EnrichedListing }) {
         <div><dt>Median comp</dt><dd>{eur.format(valuation.marketMedianEur)}</dd></div>
         <div><dt>Mileage</dt><dd>{km.format(listing.mileageKm)} km</dd></div>
         <div><dt>Deal score</dt><dd>{valuation.dealScore}/100</dd></div>
+        <div><dt>Rental / day</dt><dd>{rental?.dailyEur ? eur.format(rental.dailyEur) : <PendingValue />}</dd></div>
+        <div><dt>Rent yield</dt><dd>{rental?.annualYieldPct ? `${percentPlain.format(rental.annualYieldPct)}%` : <PendingValue />}</dd></div>
       </dl>
       <p className="meta">{listing.year} · {listing.fuel} · {listing.transmission} · {listing.location} · {listing.sellerType}</p>
       <div className="card-footer">
@@ -208,6 +296,21 @@ export default function App() {
     return sum + (listing.previousPriceEur - listing.priceEur);
   }, 0);
 
+  const rentalEstimates = filteredListings
+    .map((item) => ({ item, rental: readRentalEstimate(item) }))
+    .filter((entry): entry is { item: EnrichedListing; rental: RentalEstimate } => Boolean(entry.rental));
+  const averageDailyRental = Math.round(
+    rentalEstimates.reduce((sum, { rental }) => sum + (rental.dailyEur ?? 0), 0) / Math.max(1, rentalEstimates.filter(({ rental }) => rental.dailyEur).length),
+  );
+  const averageMonthlyGross = Math.round(
+    rentalEstimates.reduce((sum, { rental }) => sum + (rental.monthlyGrossEur ?? 0), 0) / Math.max(1, rentalEstimates.filter(({ rental }) => rental.monthlyGrossEur).length),
+  );
+  const averageAnnualYield = rentalEstimates.reduce((sum, { rental }) => sum + (rental.annualYieldPct ?? 0), 0)
+    / Math.max(1, rentalEstimates.filter(({ rental }) => rental.annualYieldPct).length);
+  const bestRentalYield = rentalEstimates
+    .filter(({ rental }) => typeof rental.annualYieldPct === 'number')
+    .sort((a, b) => (b.rental.annualYieldPct ?? 0) - (a.rental.annualYieldPct ?? 0))[0];
+
   const chartData = filteredListings.map(({ listing, valuation }) => ({
     name: `${formatSource(listing.source)} ${listing.year}`,
     asking: listing.priceEur,
@@ -221,6 +324,16 @@ export default function App() {
     const highConfidence = rows.filter((item) => item.confidence === 'high').length;
     return { source: marketSource, rows, countriesCovered, highConfidence };
   });
+
+  const snapshotRecord = asRecord(snapshot);
+  const rentalSourceRows = Array.isArray(snapshotRecord?.rentalSources)
+    ? snapshotRecord.rentalSources.map((item) => asRecord(item)).filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
+  const rentalSourceSummary = rentalSourceRows.length > 0
+    ? rentalSourceRows
+      .map((item) => `${stringFrom(item.label) ?? stringFrom(item.id) ?? 'Rental source'}: ${stringFrom(item.scrapePriority) ?? 'benchmark'} · ${stringFrom(item.reliability) ?? 'unknown'} confidence`)
+      .join(' / ')
+    : 'SnappCar primary; Getaround API/paid only; MyWheels/Greenwheels and Sixt/Europcar benchmark-only.';
 
   const snapshotFreshness = snapshotStatus === 'live'
     ? `Loaded generated snapshot from ${new Date(snapshot.generatedAt).toLocaleString('nl-NL')}`
@@ -294,6 +407,29 @@ export default function App() {
         <StatCard label="Sources covered" value={String(sources.length)} detail="Marketplaces and aggregators modeled" />
         <StatCard label="Average ask" value={eur.format(averagePrice)} detail="Current filtered inventory" />
         <StatCard label="Price-drop value" value={eur.format(totalPriceDrops)} detail={`${undervaluedCount} undervalued candidates`} tone="good" />
+        <StatCard
+          label="Estimated rental/day"
+          value={averageDailyRental > 0 ? eur.format(averageDailyRental) : 'Pending'}
+          detail={rentalEstimates.length > 0 ? `${rentalEstimates.length} rental benchmarks matched` : 'Awaiting SnappCar/API rental comps'}
+          tone="accent"
+        />
+        <StatCard
+          label="Monthly rental gross"
+          value={averageMonthlyGross > 0 ? eur.format(averageMonthlyGross) : 'Pending'}
+          detail="Modeled before platform fees, cleaning and downtime"
+        />
+        <StatCard
+          label="Annual rent yield"
+          value={averageAnnualYield > 0 ? `${percentPlain.format(averageAnnualYield)}%` : 'Pending'}
+          detail="Gross ROI against current asking price"
+          tone={averageAnnualYield >= 15 ? 'good' : 'neutral'}
+        />
+        <StatCard
+          label="Best rent-yield candidate"
+          value={bestRentalYield ? `${percentPlain.format(bestRentalYield.rental.annualYieldPct ?? 0)}%` : 'Pending'}
+          detail={bestRentalYield ? `${bestRentalYield.item.listing.make} ${bestRentalYield.item.listing.model} · ${eur.format(bestRentalYield.item.listing.priceEur)}` : 'No rental ROI estimate yet'}
+          tone="good"
+        />
       </section>
 
       <section className="panel chart-panel">
@@ -358,22 +494,30 @@ export default function App() {
                 <th>Ask</th>
                 <th>Median</th>
                 <th>Delta</th>
+                <th>Rent/day</th>
+                <th>Rent yield</th>
                 <th>Score</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {filteredListings.map(({ listing, valuation }) => (
-                <tr key={`row-${listing.id}`}>
-                  <td><strong>{listing.make} {listing.model}</strong><span>{listing.year} · {km.format(listing.mileageKm)} km · {listing.location}</span></td>
-                  <td>{formatSource(listing.source)}<span>{listing.country}</span></td>
-                  <td>{eur.format(listing.priceEur)}</td>
-                  <td>{eur.format(valuation.marketMedianEur)}</td>
-                  <td className={valuation.priceDeltaPct <= 0 ? 'positive' : 'negative'}>{percent.format(valuation.priceDeltaPct)}%</td>
-                  <td>{valuation.dealScore}</td>
-                  <td><span className={`verdict ${valuation.verdict}`}>{valuation.verdict}</span></td>
-                </tr>
-              ))}
+              {filteredListings.map((item) => {
+                const { listing, valuation } = item;
+                const rental = readRentalEstimate(item);
+                return (
+                  <tr key={`row-${listing.id}`}>
+                    <td><strong>{listing.make} {listing.model}</strong><span>{listing.year} · {km.format(listing.mileageKm)} km · {listing.location}</span></td>
+                    <td>{formatSource(listing.source)}<span>{listing.country}</span></td>
+                    <td>{eur.format(listing.priceEur)}</td>
+                    <td>{eur.format(valuation.marketMedianEur)}</td>
+                    <td className={valuation.priceDeltaPct <= 0 ? 'positive' : 'negative'}>{percent.format(valuation.priceDeltaPct)}%</td>
+                    <td>{rental?.dailyEur ? eur.format(rental.dailyEur) : <PendingValue />}</td>
+                    <td>{rental?.annualYieldPct ? `${percentPlain.format(rental.annualYieldPct)}%` : <PendingValue />}</td>
+                    <td>{valuation.dealScore}</td>
+                    <td><span className={`verdict ${valuation.verdict}`}>{valuation.verdict}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -411,6 +555,38 @@ export default function App() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="panel rental-methodology-panel">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow"><Sparkles size={16} /> rental ROI</p>
+            <h2>Owner-rental benchmark confidence</h2>
+          </div>
+          <p>Rental estimates are shown only when the generated snapshot includes defensible comp data; otherwise cards stay in pending state.</p>
+        </div>
+        <div className="rental-source-grid">
+          <div className="rental-source-card primary">
+            <strong>Snapshot confidence</strong>
+            <p>{rentalSourceSummary}</p>
+          </div>
+          <div className="rental-source-card primary">
+            <strong>SnappCar first</strong>
+            <p>Preferred owner-rental comparable surface for NL/BE car-share day rates, with confidence tied to make/model, age, location and sample count.</p>
+          </div>
+          <div className="rental-source-card">
+            <strong>Getaround via API/paid only</strong>
+            <p>Use only structured or licensed access; search scraping is not assumed because robots restrictions disallow it.</p>
+          </div>
+          <div className="rental-source-card">
+            <strong>Benchmarks, not direct comps</strong>
+            <p>MyWheels/Greenwheels fleet rates and Sixt/Europcar commercial pricing can calibrate ceilings, but should carry lower confidence than owner-rental comps.</p>
+          </div>
+          <div className="rental-source-card muted">
+            <strong>Turo skipped</strong>
+            <p>Excluded from the default NL workflow; estimates remain pending unless a future data snapshot provides an allowed source.</p>
+          </div>
+        </div>
       </section>
 
       <footer>

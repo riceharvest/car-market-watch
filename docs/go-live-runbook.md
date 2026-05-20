@@ -81,21 +81,25 @@ Optional source smoke check:
 - Review output for reachability and parser hints.
 - Do not schedule this workflow at high frequency; it touches third-party marketplaces.
 
-## 7. Scheduled data update strategy
+## 7. Scheduled data update and static snapshot strategy
 
 Do not use Vercel static deployments as the crawler runtime. Recommended production shape:
 
 1. Keep the Vercel app as the frontend/static dashboard.
-2. Run ingestion in a separate scheduled worker environment such as GitHub Actions scheduled workflow, Fly.io Machines, Railway, Render Cron Jobs, or a small VPS.
-3. Persist normalized listings and observations in Postgres/Neon/Supabase.
+2. Run resale and rental ingestion in a separate scheduled worker environment such as GitHub Actions scheduled workflow, Fly.io Machines, Railway, Render Cron Jobs, or a small VPS.
+3. Persist normalized listings, rental observations, and run metadata in Postgres/Neon/Supabase.
 4. Expose data to the frontend through a narrow API layer or generated static JSON snapshots.
-5. Use small allowlisted searches, incremental fetches, backoff, and source-specific rate limits.
-6. Store raw HTML snapshots outside git with short retention for debugging parser changes.
-7. Emit run metadata: source, search ID, started/finished time, fetched pages, parsed listings, failures, HTTP status mix, and robots/ToS review version.
+5. For the current static MVP, prefer generated JSON snapshots committed or uploaded by the worker to object storage/CDN, then consumed by the Vercel app at build/runtime.
+6. Keep crawler output snapshots immutable per run (`source/date/run-id`) and publish only sanitized derived JSON to the dashboard.
+7. Never make the Vercel build command fetch live marketplace/rental pages. Vercel preview and production builds should consume existing snapshots only.
+8. Use small allowlisted searches, incremental fetches, backoff, and source-specific rate limits.
+9. Store raw HTML snapshots outside git with short retention for debugging parser changes.
+10. Emit run metadata: source, search ID, started/finished time, fetched pages, parsed listings, failures, HTTP status mix, and robots/ToS review version.
 
 Suggested conservative cadence for MVP:
 
-- Daily run for each watched search.
+- Daily run for each watched resale search.
+- Rental-rate refresh weekly or slower unless using an official/partner API that permits more frequent updates.
 - One source at a time with jitter between requests.
 - Disable a source automatically after repeated 403/429/CAPTCHA or parser failures.
 - Keep manual smoke separate from scheduled ingestion.
@@ -103,13 +107,23 @@ Suggested conservative cadence for MVP:
 ## 8. Crawler legality, robots, and safety notes
 
 - Review each target site's robots.txt and Terms of Service before crawling.
-- Prefer official APIs where available, especially mobile.de and RDW open data.
+- Prefer official APIs where available, especially mobile.de, RDW open data, commercial rental partner APIs, and any approved rental data providers.
 - Do not bypass authentication, CAPTCHA, paywalls, bot protections, or private endpoints.
 - Identify the crawler with a truthful user agent and contact email.
 - Respect rate limits, cache pages, and avoid collecting unnecessary personal data.
 - Treat seller/dealer contact details and plate-derived enrichment as personal or sensitive data; minimize retention and access.
 - Maintain an allowlist of enabled sources and searches; default new sources to disabled until reviewed.
 - If a site blocks the crawler or requests removal, disable that source and document the decision.
+
+Rental-source-specific notes:
+
+- SnappCar is the main NL P2P rental marketplace candidate. Current research found no free public API. Only consider allowed public city/detail pages, such as allowed `/auto-huren/<city>/*` paths, after rechecking robots.txt. Do not crawl blocked account/user/service/search/query/category/searchId URLs.
+- Getaround has no open public search API identified; robots blocks search and address/date query paths plus `/docs/api`. Use partner/API/provider or paid data provider only for MVP, not DIY scraping.
+- Turo search/date/query paths are disallowed, anti-bot controls are material, and it is not NL-core. Skip for MVP unless using a paid/provider dataset.
+- MyWheels and Greenwheels public rates pages can be useful benchmark inputs, but they represent fleet/car-sharing economics, not owner P2P revenue.
+- Sixt must be official/partner API only because sixt.com robots disallows all crawling.
+- Europcar, Hertz, and Avis class rates can be useful through travel/partner APIs or aggregators, but treat them as commercial benchmarks rather than owner income.
+- For every rental source, record the robots/ToS review date, allowed URL patterns, disallowed URL patterns, rate limit, data retention, and source type before enabling a worker.
 
 ## 9. Rollback
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Listing } from '../src/types';
+import type { Listing, RentalComparable } from '../src/types';
 import { buildMarketSnapshot } from '../src/domain/snapshot';
+import { comparableRentalComps, estimateRentalRevenue, inferVehicleClass } from '../src/domain/rentalRevenue';
 import { comparableListings, daysBetween, median, valueListing } from '../src/domain/valuation';
 
 const baseListing: Listing = {
@@ -25,6 +26,31 @@ const baseListing: Listing = {
 
 function listing(overrides: Partial<Listing>): Listing {
   return { ...baseListing, ...overrides };
+}
+
+function rentalComp(overrides: Partial<RentalComparable>): RentalComparable {
+  return {
+    id: 'rent-comp',
+    source: 'snappcar',
+    sourceType: 'peer-to-peer',
+    country: 'NL',
+    city: 'Utrecht',
+    dailyRateEur: 50,
+    vehicleClass: 'compact',
+    anchors: {
+      make: 'Volkswagen',
+      model: 'Golf',
+      fuel: 'petrol',
+      transmission: 'automatic',
+      year: 2020,
+      mileageBandKm: { min: 70000, max: 110000 },
+    },
+    confidence: 'medium',
+    availabilityNote: 'Test availability note',
+    feesNote: 'Test fees note',
+    observedAt: '2026-05-20',
+    ...overrides,
+  };
 }
 
 describe('valuation math', () => {
@@ -63,6 +89,49 @@ describe('valuation math', () => {
   });
 });
 
+describe('rental revenue model', () => {
+  it('infers compact rental class and selects close rental comps', () => {
+    const close = rentalComp({ id: 'close', dailyRateEur: 50 });
+    const benchmark = rentalComp({ id: 'benchmark', source: 'greenwheels', sourceType: 'car-sharing', dailyRateEur: 47, anchors: { fuel: 'unknown', transmission: 'unknown', year: 2020, mileageBandKm: { min: 0, max: 120000 } } });
+    const wrongCountry = rentalComp({ id: 'fr-paris', country: 'FR', city: 'Paris', dailyRateEur: 90 });
+
+    expect(inferVehicleClass(baseListing)).toBe('compact');
+    expect(comparableRentalComps(baseListing, [wrongCountry, benchmark, close]).map((comp) => comp.id)).toEqual(['close', 'benchmark']);
+  });
+
+  it('estimates gross rental revenue and yield from adjusted comparable daily rates', () => {
+    const comps = [
+      rentalComp({ id: 'c1', dailyRateEur: 48, confidence: 'high' }),
+      rentalComp({ id: 'c2', dailyRateEur: 52, city: 'Amsterdam' }),
+      rentalComp({ id: 'c3', dailyRateEur: 50, anchors: { make: 'Volkswagen', model: 'Golf', fuel: 'petrol', transmission: 'manual', year: 2020, mileageBandKm: { min: 70000, max: 110000 } } }),
+    ];
+
+    const estimate = estimateRentalRevenue(baseListing, comps, {
+      weeklyBookedDays: 3,
+      monthlyBookedDays: 12,
+      annualBookedDays: 120,
+    });
+
+    expect(estimate.listingId).toBe('target');
+    expect(estimate.compCount).toBe(3);
+    expect(estimate.estimatedDailyRentEur).toBeGreaterThanOrEqual(48);
+    expect(estimate.weeklyGrossEur).toBe(estimate.estimatedDailyRentEur * 3);
+    expect(estimate.monthlyGrossEur).toBe(estimate.estimatedDailyRentEur * 12);
+    expect(estimate.annualGrossEur).toBe(estimate.estimatedDailyRentEur * 120);
+    expect(estimate.annualYieldPct).toBeCloseTo((estimate.annualGrossEur / baseListing.priceEur) * 100, 1);
+    expect(estimate.confidence).toBe('high');
+    expect(estimate.basisNotes.join(' ')).toContain('platform commission');
+  });
+
+  it('returns a low-confidence zero estimate when no rental comps match', () => {
+    const estimate = estimateRentalRevenue(baseListing, [rentalComp({ id: 'suv', vehicleClass: 'suv', anchors: { fuel: 'diesel', transmission: 'manual', year: 2012, mileageBandKm: { min: 200000, max: 260000 } } })]);
+
+    expect(estimate.estimatedDailyRentEur).toBe(0);
+    expect(estimate.compCount).toBe(0);
+    expect(estimate.confidence).toBe('low');
+  });
+});
+
 describe('market snapshot generation', () => {
   it('emits live-ready static snapshot shape with normalized valuations', () => {
     const snapshot = buildMarketSnapshot({ generatedAt: '2026-05-20T12:00:00.000Z', listings: [baseListing] });
@@ -71,11 +140,37 @@ describe('market snapshot generation', () => {
     expect(snapshot.generatedAt).toBe('2026-05-20T12:00:00.000Z');
     expect(snapshot.summary.listingCount).toBe(1);
     expect(snapshot.summary.sourceCount).toBeGreaterThanOrEqual(5);
+    expect(snapshot.summary.rentalCompCount).toBeGreaterThan(0);
+    expect(snapshot.summary.rentalEstimateCount).toBe(1);
+    expect(snapshot.summary.bestRentalYieldListingId).toBe('target');
     expect(snapshot.sources[0]).toEqual(expect.objectContaining({ id: expect.any(String), robotsNote: expect.any(String) }));
+    expect(snapshot.rentalSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'snappcar', scrapePriority: 'primary', feasibilityNote: expect.stringContaining('No open public API') }),
+        expect.objectContaining({ id: 'getaround', scrapePriority: 'skip', access: 'paid-data-provider' }),
+        expect.objectContaining({ id: 'turo', scrapePriority: 'skip', access: 'skip-scraping' }),
+      ]),
+    );
+    expect(snapshot.rentalComps[0]).toEqual(
+      expect.objectContaining({
+        dailyRateEur: expect.any(Number),
+        anchors: expect.objectContaining({ mileageBandKm: expect.objectContaining({ min: expect.any(Number), max: expect.any(Number) }) }),
+      }),
+    );
     expect(snapshot.savedSearches.length).toBeGreaterThan(0);
     expect(snapshot.alertRules.length).toBeGreaterThan(0);
     expect(snapshot.watchlist.length).toBeGreaterThan(0);
     expect(snapshot.valuations).toHaveLength(1);
+    expect(snapshot.rentalEstimates).toHaveLength(1);
+    expect(snapshot.rentalEstimates[0]).toEqual(
+      expect.objectContaining({
+        listingId: 'target',
+        estimatedDailyRentEur: expect.any(Number),
+        annualYieldPct: expect.any(Number),
+        compCount: expect.any(Number),
+        basisNotes: expect.arrayContaining([expect.stringContaining('Matched')]),
+      }),
+    );
     expect(snapshot.valuations[0]).toEqual(
       expect.objectContaining({
         listingId: 'target',

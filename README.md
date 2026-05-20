@@ -7,7 +7,8 @@ Private dashboard for tracking second-hand car listings in the Netherlands and s
 - Vite + React + TypeScript static dashboard scaffold.
 - Typed listing model and sample listings.
 - Valuation helpers for comparable-set median, price delta, days watched, and deal score.
-- Source strategy docs for Gaspedaal, AutoScout24, Marktplaats, 2dehands, Kleinanzeigen, mobile.de, and RDW enrichment.
+- Rental revenue estimates are planned as an upside/risk signal: estimate achievable daily rental rates and utilization from compliant marketplace/provider inputs, then show gross/net monthly scenarios alongside resale valuation.
+- Source strategy docs for Gaspedaal, AutoScout24, Marktplaats, 2dehands, Kleinanzeigen, mobile.de, RDW enrichment, and rental-rate benchmarks.
 - Manual smoke script for checking whether target source pages are reachable and still expose price/spec hints.
 - Vercel deployment config and GitHub Actions CI.
 
@@ -90,6 +91,9 @@ The end state is an auth-protected website where watched searches and listings a
 - seller/dealer split
 - country/source filters
 - alerts for price drops and undervalued cars
+- rental revenue estimates with source confidence, utilization assumptions, and gross/net caveats
+
+Rental pricing caveats: rental estimates are directional only. P2P marketplace prices, fleet car-sharing rates, and commercial rental rates are not interchangeable; each source has different insurance, availability, mileage, location, fee, tax, and utilization assumptions. Do not present estimates as guaranteed owner income.
 
 ## Crawler/legal note
 
