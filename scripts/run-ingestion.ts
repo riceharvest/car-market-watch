@@ -3,8 +3,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { savedSearches } from '../src/data';
 import { manualFixtureAdapter } from '../src/ingest/adapters/manualFixture';
-import { blockedOrGatedLiveSources, liveAdapters, reachableLiveSources } from '../src/ingest/liveAdapters';
-import type { IngestionSnapshot, ListingAdapter, RawListingObservation } from '../src/ingest/types';
+import { blockedOrGatedLiveSources, liveAdapters, liveIngestionRuntimeConfig, reachableLiveSources } from '../src/ingest/liveAdapters';
+import { buildIngestionRunMetadata, countListingsBySource } from '../src/ingest/snapshotMetadata';
+import type { IngestionSnapshot, IngestionSourceStatus, ListingAdapter, RawListingObservation } from '../src/ingest/types';
 import type { Listing, SavedSearch } from '../src/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -56,10 +57,13 @@ function dedupeListings(listings: Listing[]): Listing[] {
 }
 
 const outputPath = liveMode ? liveOutputPath : manualOutputPath;
-const generatedAt = process.env.INGESTION_GENERATED_AT ?? new Date().toISOString();
+const startedAt = process.env.INGESTION_STARTED_AT ?? new Date().toISOString();
+const generatedAt = process.env.INGESTION_GENERATED_AT ?? startedAt;
 let rawObservations: RawListingObservation[] = [];
 let listings: Listing[] = [];
 const notes: string[] = [];
+const errors: string[] = [];
+const sourceStatuses: IngestionSourceStatus[] = [];
 
 if (liveMode) {
   // Compliance guardrails:
@@ -71,22 +75,54 @@ if (liveMode) {
     const result = await runAdapter(adapter, selectedSearches);
     rawObservations.push(...result.raw);
     listings.push(...result.listings);
+    errors.push(...result.errors);
     notes.push(...result.errors.map((message) => `Adapter error: ${message}`));
+    sourceStatuses.push({ source: adapter.source, status: result.errors.length > 0 ? 'error' : 'enabled', reason: result.errors.length > 0 ? result.errors.join('; ') : undefined });
   }
   notes.push(`Live adapters enabled: ${reachableLiveSources.join(', ')}.`);
   for (const [source, reason] of Object.entries(blockedOrGatedLiveSources)) {
     notes.push(`${source} skipped: ${reason}`);
+    sourceStatuses.push({ source: source as IngestionSourceStatus['source'], status: 'blocked', reason });
   }
 } else {
   const result = await runAdapter(manualFixtureAdapter, selectedSearches);
   rawObservations = result.raw;
   listings = result.listings;
+  errors.push(...result.errors);
   notes.push(...result.errors.map((message) => `Adapter error: ${message}`));
   notes.push('Manual fixture runner only; no marketplace, rental platform, or RDW requests were made.');
   notes.push('Use --live --write to capture allowlisted public marketplace observations.');
+  sourceStatuses.push({ source: manualFixtureAdapter.source, status: result.errors.length > 0 ? 'error' : 'enabled', reason: result.errors.length > 0 ? result.errors.join('; ') : undefined });
+  for (const source of reachableLiveSources) {
+    sourceStatuses.push({ source, status: 'skipped', reason: 'Manual fixture mode; no live requests were made.' });
+  }
+  for (const [source, reason] of Object.entries(blockedOrGatedLiveSources)) {
+    sourceStatuses.push({ source: source as IngestionSourceStatus['source'], status: 'blocked', reason });
+  }
 }
 
 listings = dedupeListings(listings);
+const finishedAt = process.env.INGESTION_FINISHED_AT ?? new Date().toISOString();
+const runtimeConfig = liveMode
+  ? liveIngestionRuntimeConfig()
+  : {
+      pageCountConfig: { requested: null, effective: 0, max: 0 },
+      requestDelayConfig: { requestedMs: null, effectiveMs: 0 },
+    };
+const run = buildIngestionRunMetadata({
+  mode: liveMode ? 'live-marketplaces' : 'manual-fixture',
+  adapter: liveMode ? 'live-marketplaces' : manualFixtureAdapter.source,
+  startedAt,
+  finishedAt,
+  pageCountConfig: runtimeConfig.pageCountConfig,
+  requestDelayConfig: runtimeConfig.requestDelayConfig,
+  searchIds: selectedSearches.map((search) => search.id),
+  rawObservations,
+  listingSourceCounts: countListingsBySource(listings),
+  errors,
+  notes,
+  sourceStatuses,
+});
 
 const snapshot: IngestionSnapshot = {
   schemaVersion: 1,
@@ -97,6 +133,7 @@ const snapshot: IngestionSnapshot = {
   rawObservations,
   listings,
   notes,
+  run,
 };
 
 if (shouldWrite) {
@@ -114,6 +151,7 @@ console.log(
       searchIds: snapshot.searchIds,
       rawObservationCount: snapshot.rawObservations.length,
       listingCount: snapshot.listings.length,
+      run: snapshot.run,
       outputPath: shouldWrite ? outputPath : null,
       write: shouldWrite,
       notes: snapshot.notes,

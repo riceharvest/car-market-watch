@@ -7,6 +7,8 @@ dist/
 *.log
 *.tsbuildinfo
 /public/data/market-snapshot.json
+/public/data/market-snapshot-manifest.json
+/public/data/chunks/
 .vite/
 .vercel/
 playwright-report/

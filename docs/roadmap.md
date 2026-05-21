@@ -40,5 +40,7 @@
 ## Phase 4: deployment
 
 - React Router/Hono/Drizzle/Neon app if the static Vite prototype graduates into the default production stack.
-- Auth-protected private dashboard.
+- Dependency-free Postgres contract in `db/schema.sql` first, then framework migrations once the backend is chosen.
+- Auth-protected private dashboard with `/api/*` guarded before saved searches, source configs, or persisted listings are exposed.
+- Typed API contract for paginated listings and filters in `src/server/contracts.ts`.
 - Background worker and crawler observability.

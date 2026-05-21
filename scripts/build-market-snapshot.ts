@@ -1,12 +1,14 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeChunkedMarketSnapshot } from '../src/data/chunkedSnapshotWriter';
 import { buildMarketSnapshot } from '../src/domain/snapshot';
 import type { IngestionSnapshot } from '../src/ingest/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const outputPath = resolve(root, 'public/data/market-snapshot.json');
+const outputDir = resolve(root, 'public/data');
+const legacyOutputPath = resolve(outputDir, 'market-snapshot.json');
 const ingestionSnapshotPath = resolve(root, process.env.INGESTION_SNAPSHOT_PATH ?? 'artifacts/ingestion/latest-live-ingestion.json');
 
 async function loadIngestedListings(): Promise<IngestionSnapshot | null> {
@@ -26,15 +28,17 @@ const snapshot = buildMarketSnapshot({
   listings: ingestionSnapshot?.listings.length ? ingestionSnapshot.listings : undefined,
 });
 
-await mkdir(dirname(outputPath), { recursive: true });
-const tmpPath = `${outputPath}.tmp`;
-await writeFile(tmpPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
-await rename(tmpPath, outputPath);
+const chunked = await writeChunkedMarketSnapshot(snapshot, outputDir, { chunkSize: 500, publicBasePath: '/data/chunks' });
+// Remove the old giant payload if it was produced by a previous build; the app still
+// supports it as a fallback when served from older deployments.
+await rm(legacyOutputPath, { force: true });
 
 console.log(
   JSON.stringify(
     {
-      outputPath,
+      outputPath: chunked.manifestPath,
+      chunkCount: chunked.chunkPaths.length,
+      chunkSize: chunked.manifest.chunkSize,
       ingestionSnapshotPath: ingestionSnapshot?.listings.length ? ingestionSnapshotPath : null,
       ingestionMode: ingestionSnapshot?.mode ?? 'sample-fixture-fallback',
       listingCount: snapshot.summary.listingCount,

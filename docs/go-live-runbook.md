@@ -9,7 +9,7 @@ This runbook is for taking Car Market Watch from the current static Vite prototy
 - Required environment variables are present in `.env.example` and configured in Vercel as needed.
 - The deployment target is private/protected if the dashboard contains non-public search strategy, scraped data, or seller data.
 - Source-specific robots.txt, Terms of Service, and API availability have been reviewed before enabling any crawler beyond smoke checks.
-- Manual ingestion preview has been run with `pnpm exec tsx scripts/run-ingestion.ts`; use `--write` only when a local fixture snapshot artifact is needed.
+- Manual ingestion preview has been run with `pnpm exec tsx scripts/run-ingestion.ts`; use `--write` only when a local fixture snapshot artifact is needed. Review the emitted `run` metadata before consuming any generated snapshot.
 - Non-NL purchase candidates with `needsManualBpm` have a reviewed `bpmOverrideEur` or are blocked from purchase.
 
 ## 2. Vercel project import settings
@@ -40,6 +40,19 @@ Current static UI builds without secrets. Configure these only when enabling the
 | `VITE_PUBLIC_SITE_URL` | Optional | Vercel | Canonical deployed app URL for links/metadata if the app starts using it. |
 
 For Vercel, add production values first, then preview values if they differ. Do not put crawler credentials, database secrets, BPM provider keys, or worker tokens in `VITE_` variables.
+
+## 3.1 Private production architecture checklist
+
+Before enabling persisted data or a write-capable dashboard:
+
+- Keep the browser app behind Vercel Deployment Protection, an identity-aware proxy, or app-level auth; default to private until data sensitivity is reviewed.
+- Put all `/api/*` routes behind auth middleware that resolves server-side user/session context. The client must not provide `owner_user_id` directly.
+- Implement the dependency-free contracts in `src/server/contracts.ts` before adding framework-specific handlers, and keep response shapes covered by tests.
+- Apply `db/schema.sql` to a private Neon/Postgres database only from a migration step or admin workstation, not from Vercel client code.
+- Store `DATABASE_URL`, auth provider secrets, crawler/API credentials, and worker tokens as server/worker secrets only; no secret may use the `VITE_` prefix.
+- Restrict source config and saved-search mutation to an owner/admin role; viewers should be read-only.
+- Use separate runtimes for frontend/API and crawlers. Crawlers write normalized data; the API reads sanitized data.
+- Add database backups, migration rollback notes, request logs without seller/contact PII, and alerting for failed ingestion runs before relying on automated buys/alerts.
 
 ## 4. First deploy
 
@@ -90,7 +103,7 @@ pnpm exec tsx scripts/run-ingestion.ts
 pnpm exec tsx scripts/run-ingestion.ts --search=search-vw-golf-15-tsi-benelux --write
 ```
 
-The runner is manual-fixture only and makes no external requests. The `--write` mode stores `artifacts/ingestion/manual-fixture-snapshot.json` for local review.
+The default runner is manual-fixture only and makes no external requests. The `--write` mode stores `artifacts/ingestion/manual-fixture-snapshot.json` for local review. Every snapshot includes `run.startedAt`, `run.finishedAt`, `run.durationMs`, page/delay configuration, source and search count breakdowns, errors, notes, per-source statuses, and a status summary.
 
 ## 7. Scheduled data update and static snapshot strategy
 
@@ -116,6 +129,27 @@ Suggested conservative cadence for MVP:
 - Keep manual smoke separate from scheduled ingestion.
 
 See [`storage-strategy.md`](storage-strategy.md) for the JSON artifact to future Neon/Postgres path.
+
+### Current GitHub Actions live-ingestion scaffold
+
+The repository includes `.github/workflows/live-ingestion.yml` as a conservative worker scaffold that runs outside Vercel:
+
+1. It is triggered manually with `workflow_dispatch` or by a weekly Tuesday 04:17 UTC schedule.
+2. It checks out the repository with read-only `contents` permissions, installs dependencies with pnpm, and runs `scripts/run-ingestion.ts --live --write`.
+3. Manual runs can override `page_count`, `request_delay_ms`, and optionally narrow to one `search_id`.
+4. Scheduled runs default to `SCRAPER_PAGE_COUNT=1` and `SCRAPER_REQUEST_DELAY_MS=1500`.
+5. It uploads only `artifacts/ingestion-upload/latest-live-ingestion.sanitized.json` as a 14-day GitHub Actions artifact.
+6. It does **not** commit generated snapshots, push branches, deploy Vercel, or store secrets.
+
+The sanitized artifact intentionally drops `rawObservations` payloads and keeps normalized public listing fields plus the full `run` metadata for audit/review. Treat the uploaded artifact as an operational review artifact, not an automatic publication step. Promotion into the chunked static snapshot (`public/data/market-snapshot-manifest.json` plus `public/data/chunks/`), object storage, or a database should be a separate reviewed process.
+
+Live-mode compliance guardrails:
+
+- Only the adapters in `reachableLiveSources` run (`autoscout24`, `marktplaats`, `2dehands`).
+- `blockedOrGatedLiveSources` are reported in notes/statuses and must not be bypassed (`gaspedaal`, `kleinanzeigen`, `mobile-de-api` until their documented reasons change).
+- Do not add credentials or private API tokens to this scaffold.
+- If source statuses show `error` for repeated 403/429/CAPTCHA/parser failures, disable or narrow the source before the next scheduled run.
+- Keep Vercel builds consuming existing snapshots only; never move live crawling into `pnpm build`.
 
 ## 8. BPM manual override workflow
 

@@ -1,0 +1,123 @@
+name: Live ingestion artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      page_count:
+        description: 'Search result pages per source/search (1-5 recommended)'
+        required: false
+        default: '1'
+      request_delay_ms:
+        description: 'Delay between marketplace requests in milliseconds'
+        required: false
+        default: '1500'
+      search_id:
+        description: 'Optional single saved search id for a narrow manual run'
+        required: false
+        default: ''
+  schedule:
+    # Conservative scaffold: weekly, off-peak UTC. Disable or edit before production use.
+    - cron: '17 4 * * 2'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: live-ingestion-artifact
+  cancel-in-progress: false
+
+jobs:
+  live-ingestion:
+    name: Run allowlisted live ingestion outside Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SCRAPER_PAGE_COUNT: ${{ github.event.inputs.page_count || '1' }}
+      SCRAPER_REQUEST_DELAY_MS: ${{ github.event.inputs.request_delay_ms || '1500' }}
+      SCRAPER_USER_AGENT: CarMarketWatchBot/0.1 (+private research; low-rate cached market snapshot)
+      SEARCH_ID: ${{ github.event.inputs.search_id || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run allowlisted live ingestion
+        run: |
+          set -euo pipefail
+          args=(--live --write)
+          if [[ -n "${SEARCH_ID}" ]]; then
+            args+=("--search=${SEARCH_ID}")
+          fi
+          pnpm exec tsx scripts/run-ingestion.ts "${args[@]}"
+
+      - name: Create sanitized artifact bundle
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ingestion-upload
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const inputPath = 'artifacts/ingestion/latest-live-ingestion.json';
+          const snapshot = JSON.parse(await readFile(inputPath, 'utf8'));
+          const sanitized = {
+            schemaVersion: snapshot.schemaVersion,
+            generatedAt: snapshot.generatedAt,
+            adapter: snapshot.adapter,
+            mode: snapshot.mode,
+            searchIds: snapshot.searchIds,
+            listingCount: snapshot.listings?.length ?? 0,
+            rawObservationCount: snapshot.rawObservations?.length ?? 0,
+            notes: snapshot.notes,
+            run: snapshot.run,
+            // Raw marketplace payloads are intentionally not uploaded by default.
+            rawObservations: [],
+            // Keep only normalized public listing fields used by the static dashboard.
+            listings: (snapshot.listings ?? []).map((listing) => ({
+              id: listing.id,
+              source: listing.source,
+              country: listing.country,
+              url: listing.url,
+              title: listing.title,
+              make: listing.make,
+              model: listing.model,
+              trim: listing.trim,
+              priceEur: listing.priceEur,
+              mileageKm: listing.mileageKm,
+              year: listing.year,
+              fuel: listing.fuel,
+              transmission: listing.transmission,
+              location: listing.location,
+              sellerType: listing.sellerType,
+              firstSeen: listing.firstSeen,
+              lastSeen: listing.lastSeen,
+              firstRegistrationDate: listing.firstRegistrationDate,
+              confidence: listing.confidence,
+              notes: listing.notes,
+            })),
+          };
+          await writeFile('artifacts/ingestion-upload/latest-live-ingestion.sanitized.json', `${JSON.stringify(sanitized, null, 2)}\n`, 'utf8');
+          NODE
+
+      - name: Upload sanitized ingestion artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-ingestion-sanitized-${{ github.run_id }}
+          path: artifacts/ingestion-upload/latest-live-ingestion.sanitized.json
+          if-no-files-found: error
+          retention-days: 14

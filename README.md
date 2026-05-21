@@ -22,7 +22,7 @@ Manual/worker-side operations
   ├─ scrape smoke checks: pnpm scrape:smoke (manual only)
   ├─ live allowlisted ingestion: pnpm ingest:live
   ├─ manual fixture ingestion: pnpm exec tsx scripts/run-ingestion.ts [--write]
-  └─ future scheduled ingestion worker -> database/API -> dashboard
+  └─ scheduled/manual GitHub Actions ingestion scaffold -> sanitized artifact -> reviewed publish path
 ```
 
 The current app is a static frontend. It should be deployed on Vercel as a Vite app. Live crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. `pnpm build` uses `artifacts/ingestion/latest-live-ingestion.json` when present; otherwise it falls back to local sample fixtures.
@@ -56,7 +56,7 @@ pnpm exec tsx scripts/run-ingestion.ts
 pnpm exec tsx scripts/run-ingestion.ts --search=search-vw-golf-15-tsi-benelux --write
 ```
 
-`--write` creates `artifacts/ingestion/manual-fixture-snapshot.json` for local review. The runner has an explicit allowlist and performs no live external requests.
+`--write` creates `artifacts/ingestion/manual-fixture-snapshot.json` for local review. The runner has an explicit allowlist and performs no live external requests. Snapshot JSON includes run metadata (`startedAt`, `finishedAt`, `durationMs`), page/delay configuration, source/search count breakdowns, errors/notes, and source status summaries.
 
 Capture the current allowlisted live marketplace data manually:
 
@@ -66,6 +66,8 @@ pnpm build
 ```
 
 The live runner currently uses public search-page payloads from AutoScout24, Marktplaats, and 2dehands. It expands configured searches across up to 3 result pages by default, with `SCRAPER_PAGE_COUNT`, `SCRAPER_REQUEST_DELAY_MS`, and `SCRAPER_MAX_LISTINGS_PER_SEARCH_SOURCE` available for manual runs. Gaspedaal is reachable but not normalized yet, Kleinanzeigen returned 403 from this environment, and mobile.de stays official-API-only.
+
+Scheduled/manual live ingestion is scaffolded in `.github/workflows/live-ingestion.yml`. It runs outside Vercel, defaults to a conservative weekly cadence and one page per search/source, uploads a sanitized 14-day artifact, and does not commit or deploy generated data by default.
 
 ## Deploy on Vercel
 

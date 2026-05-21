@@ -4,9 +4,15 @@ import type { ListingAdapter, RawListingObservation } from './types';
 const USER_AGENT = process.env.SCRAPER_USER_AGENT ?? 'CarMarketWatchBot/0.1 (+private research; low-rate cached market snapshot)';
 const REQUEST_TIMEOUT_MS = 25_000;
 const DEFAULT_SEARCH_PAGE_COUNT = 3;
-const MAX_SEARCH_PAGE_COUNT = 20;
+export const MAX_SEARCH_PAGE_COUNT = 20;
 const DEFAULT_MAX_LISTINGS_PER_SEARCH_SOURCE = 500;
-const REQUEST_DELAY_MS = Number.parseInt(process.env.SCRAPER_REQUEST_DELAY_MS ?? '400', 10);
+const DEFAULT_REQUEST_DELAY_MS = 400;
+function configuredRequestDelayMs(): number {
+  const parsed = Number.parseInt(process.env.SCRAPER_REQUEST_DELAY_MS ?? String(DEFAULT_REQUEST_DELAY_MS), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_REQUEST_DELAY_MS;
+  return parsed;
+}
+export const REQUEST_DELAY_MS = configuredRequestDelayMs();
 
 export type LiveAdapterResult = {
   adapter: ListingAdapter;
@@ -177,10 +183,29 @@ function autoscoutCountryUrls(url: string, countries: CountryCode[]): string[] {
     .map((cy) => url.replace(/([?&]cy=)[^&]+/, `$1${cy}`));
 }
 
-function configuredPageCount(): number {
+export function configuredPageCount(): number {
   const parsed = Number.parseInt(process.env.SCRAPER_PAGE_COUNT ?? String(DEFAULT_SEARCH_PAGE_COUNT), 10);
   if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_SEARCH_PAGE_COUNT;
   return Math.min(parsed, MAX_SEARCH_PAGE_COUNT);
+}
+
+export function liveIngestionRuntimeConfig(): {
+  pageCountConfig: { requested: number | null; effective: number; max: number };
+  requestDelayConfig: { requestedMs: number | null; effectiveMs: number };
+} {
+  const requestedPageCount = process.env.SCRAPER_PAGE_COUNT === undefined ? null : Number.parseInt(process.env.SCRAPER_PAGE_COUNT, 10);
+  const requestedDelayMs = process.env.SCRAPER_REQUEST_DELAY_MS === undefined ? null : Number.parseInt(process.env.SCRAPER_REQUEST_DELAY_MS, 10);
+  return {
+    pageCountConfig: {
+      requested: Number.isFinite(requestedPageCount) ? requestedPageCount : null,
+      effective: configuredPageCount(),
+      max: MAX_SEARCH_PAGE_COUNT,
+    },
+    requestDelayConfig: {
+      requestedMs: Number.isFinite(requestedDelayMs) ? requestedDelayMs : null,
+      effectiveMs: REQUEST_DELAY_MS,
+    },
+  };
 }
 
 function configuredMaxListingsPerSearchSource(): number {

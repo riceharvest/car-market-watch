@@ -19,6 +19,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { loadMarketSnapshotFromStaticData } from './data/chunkedSnapshot';
 import { buildMarketSnapshot } from './domain/snapshot';
 import type { DataQualityReport, ImportCostEstimate, Listing, MarketSnapshot, MarketSource, NetRentalEstimate, PurchaseDecision, Valuation } from './types';
 import './styles.css';
@@ -264,11 +265,13 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/data/market-snapshot.json', { cache: 'no-store' })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Snapshot request failed: ${response.status}`);
-        return response.json() as Promise<MarketSnapshot>;
-      })
+    const fetchJson = async (url: string): Promise<unknown> => {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Snapshot request failed: ${url} ${response.status}`);
+      return response.json();
+    };
+
+    loadMarketSnapshotFromStaticData(fetchJson)
       .then((nextSnapshot) => {
         if (!cancelled && nextSnapshot.schemaVersion === 1) {
           setSnapshot(nextSnapshot);
@@ -774,7 +777,7 @@ export default function App() {
             <li><CheckCircle2 size={17} /> Deep discount against comparable median</li>
             <li><CheckCircle2 size={17} /> Price drop from previous snapshot</li>
             <li><CheckCircle2 size={17} /> Confidence-aware source prioritization</li>
-            <li><CheckCircle2 size={17} /> Static JSON artifact at /data/market-snapshot.json</li>
+            <li><CheckCircle2 size={17} /> Chunked static JSON artifacts at /data/market-snapshot-manifest.json</li>
           </ul>
         </article>
 
