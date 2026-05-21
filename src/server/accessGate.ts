@@ -36,7 +36,7 @@ export function evaluateAccessRequest(input: AccessRequestInput, configuredPassw
 
 export const missingVercelAccessPassword = '__ACCESS_PASSWORD_NOT_CONFIGURED__';
 
-export function resolveConfiguredAccessPassword(env: Pick<NodeJS.ProcessEnv, 'ACCESS_PASSWORD' | 'VERCEL' | 'VERCEL_ENV'>): string | undefined {
+export function resolveConfiguredAccessPassword(env: Record<string, string | undefined>): string | undefined {
   const configured = env.ACCESS_PASSWORD?.trim();
   if (configured) return configured;
   return env.VERCEL || env.VERCEL_ENV ? missingVercelAccessPassword : undefined;
