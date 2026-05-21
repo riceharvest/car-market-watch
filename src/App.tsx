@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { loadMarketSnapshotFromStaticData } from './data/chunkedSnapshot';
+import { limitDashboardRows } from './domain/dashboardDisplay';
 import { buildListingActionLinks, buildRentalCompetitorLinks, type RentalCompetitorLink } from './domain/rentalCompetitorLinks';
 import { buildMarketSnapshot } from './domain/snapshot';
 import type { DataQualityReport, ImportCostEstimate, Listing, MarketSnapshot, MarketSource, NetRentalEstimate, PurchaseDecision, Valuation } from './types';
@@ -376,6 +377,8 @@ export default function App() {
   const selectedPurchaseCandidate = filteredPurchaseCandidates.find((item) => item.listing.id === selectedPurchaseId)
     ?? filteredPurchaseCandidates[0]
     ?? purchaseCandidates[0];
+  const filteredDisplayRows = useMemo(() => limitDashboardRows(filteredListings), [filteredListings]);
+  const purchaseDisplayRows = useMemo(() => limitDashboardRows(filteredPurchaseCandidates), [filteredPurchaseCandidates]);
 
   useEffect(() => {
     if (!selectedPurchaseCandidate) return;
@@ -426,7 +429,7 @@ export default function App() {
     .filter(({ rental }) => typeof rental.annualYieldPct === 'number')
     .sort((a, b) => (b.rental.annualYieldPct ?? 0) - (a.rental.annualYieldPct ?? 0))[0];
 
-  const chartData = filteredListings.map(({ listing, valuation }) => ({
+  const chartData = filteredDisplayRows.chartRows.map(({ listing, valuation }) => ({
     name: `${formatSource(listing.source)} ${listing.year}`,
     asking: listing.priceEur,
     median: valuation.marketMedianEur,
@@ -574,7 +577,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPurchaseCandidates.map((candidate, index) => {
+                  {purchaseDisplayRows.purchaseRows.map((candidate, index) => {
                     const { listing, decision } = candidate;
                     const selected = selectedPurchaseCandidate?.listing.id === listing.id;
                     const notes = [...decision.blockers.slice(0, 1), ...decision.reasons.slice(0, 2)].slice(0, 3);
@@ -600,6 +603,9 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            {purchaseDisplayRows.hiddenPurchaseRowCount > 0 && (
+              <p className="limit-note">Showing the top {purchaseDisplayRows.purchaseRows.length} purchase candidates. Narrow filters/search to inspect the remaining {purchaseDisplayRows.hiddenPurchaseRowCount} without freezing mobile.</p>
+            )}
             {filteredPurchaseCandidates.length === 0 && <div className="empty-state"><Target size={20} /> No purchase decisions match the active filters.</div>}
           </div>
 
@@ -713,6 +719,9 @@ export default function App() {
           <p>Valuation uses same make/model, ±2 years, ±40k km and compatible fuel from the existing domain helpers.</p>
         </div>
         <div className="chart-wrap">
+          {filteredDisplayRows.hiddenChartRowCount > 0 && (
+            <p className="limit-note chart-limit">Chart renders the top {filteredDisplayRows.chartRows.length} matches for mobile performance; filters still apply across all {filteredListings.length} rows.</p>
+          )}
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={340}>
               <BarChart data={chartData} margin={{ left: 0, right: 8, top: 10, bottom: 8 }}>
@@ -745,8 +754,11 @@ export default function App() {
           <p>Sorted and filtered locally. Cards highlight price movement, market delta, days watched and source links.</p>
         </div>
         <div className="listing-grid">
-          {filteredListings.map((item) => <ListingCard key={item.listing.id} item={item} />)}
+          {filteredDisplayRows.listingCards.map((item) => <ListingCard key={item.listing.id} item={item} />)}
         </div>
+        {filteredDisplayRows.hiddenListingCardCount > 0 && (
+          <p className="limit-note">Showing the top {filteredDisplayRows.listingCards.length} listing cards. Use search/filters for the other {filteredDisplayRows.hiddenListingCardCount} matches.</p>
+        )}
         {filteredListings.length === 0 && <div className="empty-state"><Search size={20} /> Try widening your filters or clearing the search query.</div>}
       </section>
 
@@ -774,7 +786,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {filteredListings.map((item) => {
+              {filteredDisplayRows.analystRows.map((item) => {
                 const { listing, valuation } = item;
                 const rental = readRentalEstimate(item);
                 return (
@@ -800,6 +812,9 @@ export default function App() {
             </tbody>
           </table>
         </div>
+        {filteredDisplayRows.hiddenAnalystRowCount > 0 && (
+          <p className="limit-note">Showing the first {filteredDisplayRows.analystRows.length} deal queue rows; {filteredDisplayRows.hiddenAnalystRowCount} more stay filterable without rendering into the DOM.</p>
+        )}
       </section>
 
       <section className="coverage-grid">

@@ -131,6 +131,8 @@ h3 { margin: 16px 0; line-height: 1.16; letter-spacing: -0.025em; }
 .section-heading.compact { margin-bottom: 12px; }
 .chart-wrap { min-height: 240px; }
 .empty-state { min-height: 180px; border: 1px dashed rgba(148, 163, 184, .22); border-radius: 20px; display: grid; place-items: center; gap: 8px; color: #94a3b8; text-align: center; padding: 28px; }
+.limit-note { margin: 14px 0 0; color: #94a3b8; line-height: 1.5; font-size: .92rem; }
+.chart-limit { margin: -4px 0 12px; }
 
 .listing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .listing-card { border-radius: 22px; padding: 20px; transition: transform .18s ease, border-color .18s ease; }
@@ -264,6 +266,10 @@ footer { display: flex; justify-content: center; align-items: center; gap: 8px; 
   .section-heading { display: block; }
   .section-heading p { margin-top: 10px; }
   .panel, .hero-panel, .filters-panel { border-radius: 22px; padding: 18px; }
+  .hero-panel, .panel, .stat-card, .listing-card, .filters-panel { backdrop-filter: none; box-shadow: 0 14px 36px rgba(0,0,0,.22); }
+  body::before { display: none; }
+  button:hover, .listing-card:hover { transform: none; }
+  .chart-wrap { min-height: 300px; }
   .source-row { display: block; }
   .source-row > span { display: inline-block; margin-top: 10px; white-space: normal; }
   .price-row { align-items: flex-start; flex-direction: column; }
