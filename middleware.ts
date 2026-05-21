@@ -1,4 +1,4 @@
-import { evaluateAccessRequest } from './src/server/accessGate';
+import { evaluateAccessRequest, resolveConfiguredAccessPassword } from './src/server/accessGate';
 
 const loginPage = (rejected = false) => `<!doctype html>
 <html lang="en">
@@ -44,7 +44,7 @@ export default async function middleware(request: Request): Promise<Response | u
       cookieHeader: request.headers.get('cookie'),
       submittedPassword,
     },
-    process.env.ACCESS_PASSWORD,
+    resolveConfiguredAccessPassword(process.env),
   );
 
   if (decision.kind === 'allow') return undefined;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateAccessRequest } from '../src/server/accessGate';
+import { evaluateAccessRequest, resolveConfiguredAccessPassword } from '../src/server/accessGate';
 
 describe('private access gate', () => {
   it('allows requests when no access password is configured', () => {
@@ -28,6 +28,13 @@ describe('private access gate', () => {
     expect(decision.cookie).toContain('HttpOnly');
     expect(decision.cookie).toContain('Secure');
     expect(decision.cookie).toContain('SameSite=Lax');
+  });
+
+  it('fails closed on Vercel when ACCESS_PASSWORD is missing', () => {
+    const password = resolveConfiguredAccessPassword({ VERCEL: '1' });
+    const decision = evaluateAccessRequest({ method: 'GET', pathname: '/', cookieHeader: '' }, password);
+
+    expect(decision.kind).toBe('challenge');
   });
 
   it('rejects an incorrect submitted password without setting a cookie', () => {

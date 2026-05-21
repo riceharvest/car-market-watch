@@ -34,6 +34,14 @@ export function evaluateAccessRequest(input: AccessRequestInput, configuredPassw
   return { kind: 'challenge', status: 401 };
 }
 
+export const missingVercelAccessPassword = '__ACCESS_PASSWORD_NOT_CONFIGURED__';
+
+export function resolveConfiguredAccessPassword(env: Pick<NodeJS.ProcessEnv, 'ACCESS_PASSWORD' | 'VERCEL' | 'VERCEL_ENV'>): string | undefined {
+  const configured = env.ACCESS_PASSWORD?.trim();
+  if (configured) return configured;
+  return env.VERCEL || env.VERCEL_ENV ? missingVercelAccessPassword : undefined;
+}
+
 function buildAccessCookie(password: string): string {
   return `${accessCookieName}=${encodeURIComponent(password)}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`;
 }
