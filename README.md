@@ -23,9 +23,15 @@ Manual/worker-side operations
   ├─ live allowlisted ingestion: pnpm ingest:live
   ├─ manual fixture ingestion: pnpm exec tsx scripts/run-ingestion.ts [--write]
   └─ scheduled/manual GitHub Actions ingestion scaffold -> sanitized artifact -> reviewed publish path
+
+Production-readiness scaffold
+  ├─ Hono /api/listings boundary with trusted auth dependency
+  ├─ Postgres/Neon listing repository + ingestion writer SQL mapping
+  ├─ Better Auth integration boundary
+  └─ local Postgres via compose.yaml + pnpm db:setup
 ```
 
-The current app is a static frontend. It should be deployed on Vercel as a Vite app. Live crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. `pnpm build` uses `artifacts/ingestion/latest-live-ingestion.json` when present; otherwise it falls back to local sample fixtures.
+The current deployed path is still a static frontend. It should be deployed on Vercel as a Vite app until the serverless Hono entrypoint is wired. Live crawling and scheduled ingestion should run outside the Vercel static build path so deploys do not hammer third-party marketplaces. `pnpm build` uses `artifacts/ingestion/latest-live-ingestion.json` when present; otherwise it falls back to local sample fixtures.
 
 ## Run locally
 
@@ -98,13 +104,18 @@ Live source smoke checks are separated into the manual **Scrape smoke** workflow
 
 ## Environment variables
 
-Copy `.env.example` when local or deployed configuration is needed. The static app currently has no required production secrets.
+Copy `.env.example` when local or deployed configuration is needed. The browser bundle still has no required production secrets, but the server/worker scaffold does.
 
 Important conventions:
 
-- `DATABASE_URL` is reserved for a future server/worker database connection and must not be exposed to browser code.
+- `DATABASE_URL` is server/worker-only. Local development can use `pnpm db:setup`; production should use Neon/Postgres.
+- `DATABASE_SSL` defaults to `false` for localhost and `true` for remote hosts unless explicitly overridden.
+- `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` are reserved for the Better Auth server boundary and must not be exposed to browser code.
+- `INGESTION_DB_MODE=json` keeps the current artifact workflow; `INGESTION_DB_MODE=db` is the future worker mode that requires `DATABASE_URL`.
 - `SCRAPER_USER_AGENT` should identify the crawler honestly and include contact information.
 - Only `VITE_*` variables are exposed to the client bundle.
+
+See [`docs/production-readiness.md`](docs/production-readiness.md) for the DB/API/auth scaffold and remaining production wiring.
 
 ## Product direction
 

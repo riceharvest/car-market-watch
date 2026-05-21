@@ -5,6 +5,8 @@ import { savedSearches } from '../src/data';
 import { manualFixtureAdapter } from '../src/ingest/adapters/manualFixture';
 import { blockedOrGatedLiveSources, liveAdapters, liveIngestionRuntimeConfig, reachableLiveSources } from '../src/ingest/liveAdapters';
 import { buildIngestionRunMetadata, countListingsBySource } from '../src/ingest/snapshotMetadata';
+import { createPostgresExecutor } from '../src/server/db/postgres';
+import { writeIngestionSnapshotToDb } from '../src/server/db/ingestionWriter';
 import type { IngestionSnapshot, IngestionSourceStatus, ListingAdapter, RawListingObservation } from '../src/ingest/types';
 import type { Listing, SavedSearch } from '../src/types';
 
@@ -15,6 +17,7 @@ const liveOutputPath = resolve(root, 'artifacts/ingestion/latest-live-ingestion.
 
 const args = new Set(process.argv.slice(2));
 const shouldWrite = args.has('--write');
+const shouldWriteDb = args.has('--db') || process.env.INGESTION_DB_MODE === 'db';
 const liveMode = args.has('--live');
 const requestedSearchIds = process.argv
   .slice(2)
@@ -136,11 +139,22 @@ const snapshot: IngestionSnapshot = {
   run,
 };
 
+let dbWriteResult = null as Awaited<ReturnType<typeof writeIngestionSnapshotToDb>> | null;
+
 if (shouldWrite) {
   await mkdir(dirname(outputPath), { recursive: true });
   const tmpPath = `${outputPath}.tmp`;
   await writeFile(tmpPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
   await rename(tmpPath, outputPath);
+}
+
+if (shouldWriteDb) {
+  const db = createPostgresExecutor();
+  try {
+    dbWriteResult = await writeIngestionSnapshotToDb(db, snapshot);
+  } finally {
+    await db.close();
+  }
 }
 
 console.log(
@@ -154,8 +168,9 @@ console.log(
       run: snapshot.run,
       outputPath: shouldWrite ? outputPath : null,
       write: shouldWrite,
+      dbWrite: dbWriteResult,
       notes: snapshot.notes,
-      note: shouldWrite ? 'Snapshot written.' : `Preview only. Re-run with ${liveMode ? '--live ' : ''}--write to create ${outputPath}.`,
+      note: shouldWrite || shouldWriteDb ? 'Ingestion completed.' : `Preview only. Re-run with ${liveMode ? '--live ' : ''}--write to create ${outputPath}, or --db to persist to DATABASE_URL.`,
     },
     null,
     2,

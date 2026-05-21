@@ -11,17 +11,27 @@
     "test": "vitest run",
     "data:build": "tsx scripts/build-market-snapshot.ts",
     "ingest:live": "tsx scripts/run-ingestion.ts --live --write",
-    "scrape:smoke": "tsx scripts/scrape-smoke.ts"
+    "scrape:smoke": "tsx scripts/scrape-smoke.ts",
+    "db:up": "bash scripts/dev-db.sh up",
+    "db:down": "bash scripts/dev-db.sh down",
+    "db:reset": "bash scripts/dev-db.sh reset",
+    "db:wait": "bash scripts/dev-db.sh wait",
+    "db:setup": "bash scripts/dev-db.sh setup",
+    "db:logs": "bash scripts/dev-db.sh logs",
+    "db:psql": "bash scripts/dev-db.sh psql"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "tsx": "latest",
+    "better-auth": "^1.6.11",
+    "hono": "^4.12.21",
+    "lucide-react": "latest",
+    "postgres": "^3.4.9",
     "react": "latest",
     "react-dom": "latest",
     "recharts": "latest",
-    "lucide-react": "latest"
+    "tsx": "latest",
+    "typescript": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
