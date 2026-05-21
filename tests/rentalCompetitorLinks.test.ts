@@ -95,7 +95,7 @@ const comps: RentalComparable[] = [
 describe('listing action links', () => {
   it('keeps the actual marketplace listing URL as the primary source link', () => {
     expect(buildListingActionLinks(listing).source).toEqual({
-      label: 'Actual listing',
+      label: 'Advertentie bekijken',
       url: 'https://www.autoscout24.nl/aanbod/test-golf',
     });
   });
@@ -111,7 +111,7 @@ describe('rental competitor links', () => {
       url: 'https://www.snappcar.nl/',
       matchType: 'same-model',
       dailyRateEur: 49,
-      basis: 'Volkswagen Golf · Utrecht · 2018 · petrol · automatic',
+      basis: 'Volkswagen Golf · Utrecht · 2018 · benzine · automaat',
     });
     expect(links[1]).toMatchObject({
       label: 'Sixt',

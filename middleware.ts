@@ -1,31 +1,31 @@
 import { evaluateAccessRequest, resolveConfiguredAccessPassword } from './src/server/accessGate';
 
 const loginPage = (rejected = false) => `<!doctype html>
-<html lang="en">
+<html lang="nl">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Car Market Watch</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #05070d; color: #f6f7fb; }
-      main { width: min(92vw, 380px); padding: 32px; border: 1px solid rgba(255,255,255,.14); border-radius: 24px; background: linear-gradient(145deg, rgba(18,24,38,.96), rgba(8,11,18,.96)); box-shadow: 0 24px 80px rgba(0,0,0,.45); }
+      :root { color-scheme: light; font-family: Roboto, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #eceff1; color: #263238; }
+      main { width: min(92vw, 380px); padding: 32px; border-radius: 4px; background: #fff; box-shadow: 0 10px 24px rgba(0,0,0,.18), 0 4px 10px rgba(0,0,0,.12); }
       h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: -.03em; }
-      p { margin: 0 0 24px; color: #9ba4b5; line-height: 1.5; }
-      label { display: grid; gap: 8px; color: #c9d1df; font-size: 14px; }
-      input { box-sizing: border-box; width: 100%; border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 13px 14px; background: rgba(255,255,255,.06); color: #fff; font: inherit; }
-      button { margin-top: 16px; width: 100%; border: 0; border-radius: 14px; padding: 13px 14px; background: #8b5cf6; color: #fff; font-weight: 700; cursor: pointer; }
-      .error { margin-bottom: 14px; color: #fca5a5; }
+      p { margin: 0 0 24px; color: #607d8b; line-height: 1.5; }
+      label { display: grid; gap: 8px; color: #455a64; font-size: 14px; }
+      input { box-sizing: border-box; width: 100%; border: 1px solid rgba(38,50,56,.16); border-radius: 3px; padding: 13px 14px; background: #fafafa; color: #263238; font: inherit; }
+      button { margin-top: 16px; width: 100%; border: 0; border-radius: 3px; padding: 13px 14px; background: #1976d2; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
+      .error { margin-bottom: 14px; color: #c62828; }
     </style>
   </head>
   <body>
     <main>
       <h1>Car Market Watch</h1>
-      <p>Private dashboard. Enter the access password.</p>
-      ${rejected ? '<div class="error">Wrong password.</div>' : ''}
+      <p>Privédashboard. Voer het toegangswachtwoord in.</p>
+      ${rejected ? '<div class="error">Verkeerd wachtwoord.</div>' : ''}
       <form method="post" action="/access">
-        <label>Password<input name="password" type="password" autocomplete="current-password" autofocus /></label>
-        <button type="submit">Enter</button>
+        <label>Wachtwoord<input name="password" type="password" autocomplete="current-password" autofocus /></label>
+        <button type="submit">Binnenkomen</button>
       </form>
     </main>
   </body>

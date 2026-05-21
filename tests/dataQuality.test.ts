@@ -51,19 +51,19 @@ describe('data quality reports', () => {
       rentalEstimate: { listingId: imported.id, compCount: 2, confidence: 'medium' },
     });
 
-    expect(report.missingCriticalFields).toContain('CO2 or BPM override for import');
-    expect(report.warnings.join(' ')).toContain('missing CO2/BPM override');
+    expect(report.missingCriticalFields).toContain('CO2 of BPM-override voor import');
+    expect(report.warnings.join(' ')).toContain('mist CO2/BPM-override');
     expect(report.completenessPct).toBeLessThan(100);
     expect(report.confidence).not.toBe('high');
   });
 
-  it('lowers confidence when rental comparable count is zero', () => {
+  it('lowers confidence when aantal verhuurcomparables is zero', () => {
     const report = buildDataQualityReport(baseListing, {
       rentalEstimate: { listingId: baseListing.id, compCount: 0, confidence: 'low' },
     });
 
-    expect(report.missingCriticalFields).toContain('rental comparable count');
-    expect(report.warnings.join(' ')).toContain('Rental comparable count is zero');
+    expect(report.missingCriticalFields).toContain('aantal verhuurcomparables');
+    expect(report.warnings.join(' ')).toContain('Aantal verhuurcomparables is nul');
     expect(report.confidence).toBe('medium');
   });
 
@@ -80,6 +80,6 @@ describe('data quality reports', () => {
 
     expect(reports).toHaveLength(2);
     expect(reports.map((report) => report.listingId)).toEqual(['complete-nl', 'import-with-bpm']);
-    expect(reports[1].missingCriticalFields).not.toContain('CO2 or BPM override for import');
+    expect(reports[1].missingCriticalFields).not.toContain('CO2 of BPM-override voor import');
   });
 });

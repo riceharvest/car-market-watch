@@ -33,7 +33,7 @@ export const importCountryProfiles: Record<ImportProfileKey, ImportCountryProfil
     vatRate: 0,
     customsDutyRate: 0,
     confidence: 'high',
-    assumptions: ['Already registered/marketed domestically in the Netherlands; no import logistics, VAT, customs, or BPM import workflow assumed.'],
+    assumptions: ['Al geregistreerd/aangeboden in Nederland; geen importlogistiek, btw, douane of BPM-importworkflow aangenomen.'],
     sourceUrls: [rdwRegistrationUrl, belastingdienstBpmUrl],
   },
   BE: {
@@ -47,7 +47,7 @@ export const importCountryProfiles: Record<ImportProfileKey, ImportCountryProfil
     vatRate: 0,
     customsDutyRate: 0,
     confidence: 'medium',
-    assumptions: ['Nearby EU/EFTA import tier; assumes buyer-arranged transport or pickup plus Dutch RDW registration workflow.', 'EU/EFTA used-car imports normally do not incur Dutch customs duty or import VAT, but a BPM return is still required.'],
+    assumptions: ['Nabije EU/EFTA-importlaag; gaat uit van door koper geregeld transport of ophalen plus Nederlandse RDW-registratie.', 'EU/EFTA-import van gebruikte auto’s heeft normaal geen Nederlandse invoerrechten of import-btw, maar BPM-aangifte blijft vereist.'],
     sourceUrls: [rdwRegistrationUrl, belastingdienstBpmUrl],
   },
   DE: {
@@ -61,7 +61,7 @@ export const importCountryProfiles: Record<ImportProfileKey, ImportCountryProfil
     vatRate: 0,
     customsDutyRate: 0,
     confidence: 'medium',
-    assumptions: ['Common EU/EFTA import tier from western Germany; transport estimate is higher than Belgium to allow for distance and handling.', 'EU/EFTA used-car imports normally do not incur Dutch customs duty or import VAT, but a BPM return is still required.'],
+    assumptions: ['Gangbare EU/EFTA-importlaag uit West-Duitsland; transportschatting is hoger dan België vanwege afstand en handling.', 'EU/EFTA-import van gebruikte auto’s heeft normaal geen Nederlandse invoerrechten of import-btw, maar BPM-aangifte blijft vereist.'],
     sourceUrls: [rdwRegistrationUrl, belastingdienstBpmUrl],
   },
   FR: {
@@ -75,7 +75,7 @@ export const importCountryProfiles: Record<ImportProfileKey, ImportCountryProfil
     vatRate: 0,
     customsDutyRate: 0,
     confidence: 'medium',
-    assumptions: ['Longer-distance EU/EFTA import tier; transport estimate is above Belgium and Germany for collection from northern/central France.', 'EU/EFTA used-car imports normally do not incur Dutch customs duty or import VAT, but a BPM return is still required.'],
+    assumptions: ['EU/EFTA-importlaag op grotere afstand; transportschatting ligt boven België en Duitsland voor ophalen in Noord-/Midden-Frankrijk.', 'EU/EFTA-import van gebruikte auto’s heeft normaal geen Nederlandse invoerrechten of import-btw, maar BPM-aangifte blijft vereist.'],
     sourceUrls: [rdwRegistrationUrl, belastingdienstBpmUrl],
   },
   NON_EU: {
@@ -89,7 +89,7 @@ export const importCountryProfiles: Record<ImportProfileKey, ImportCountryProfil
     vatRate: 0.21,
     customsDutyRate: 0.1,
     confidence: 'low',
-    assumptions: ['Placeholder for imports from outside the EU/EFTA; real costs depend on origin, shipping, customs value, vehicle type, and exemption status.', 'Applies indicative Dutch VAT and customs placeholders to the vehicle value and transport base until a broker quote is available.'],
+    assumptions: ['Placeholder voor import van buiten EU/EFTA; echte kosten hangen af van herkomst, transport, douanewaarde, voertuigtype en vrijstellingsstatus.', 'Past indicatieve Nederlandse btw- en douaneplaceholders toe op voertuigwaarde en transportbasis totdat een broker-offerte beschikbaar is.'],
     sourceUrls: [rdwRegistrationUrl, belastingdienstBpmUrl, douaneImportUrl],
   },
 };

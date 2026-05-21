@@ -101,8 +101,8 @@ describe('purchase decision engine', () => {
 
     expect(['buy-now', 'negotiate']).toContain(decision.verdict);
     expect(decision.purchaseScore).toBeGreaterThanOrEqual(62);
-    expect(decision.reasons.join(' ')).toContain('below Dutch market median');
-    expect(decision.reasons.join(' ')).toContain('Net rental yield');
+    expect(decision.reasons.join(' ')).toContain('onder de Nederlandse marktmediaan');
+    expect(decision.reasons.join(' ')).toContain('Netto huurrendement');
     expect(decision.blockers).toEqual([]);
   });
 
@@ -117,8 +117,8 @@ describe('purchase decision engine', () => {
     const decision = decideFor(target, comps);
 
     expect(decision.verdict).toBe('needs-data');
-    expect(decision.blockers.join(' ')).toContain('Manual BPM input required');
-    expect(decision.blockers.join(' ')).toContain('CO2 or BPM override for import');
+    expect(decision.blockers.join(' ')).toContain('Handmatige BPM-invoer nodig');
+    expect(decision.blockers.join(' ')).toContain('CO2 of BPM-override voor import');
   });
 
   it('does not allow a massive discount to override missing manual BPM data', () => {
@@ -134,7 +134,7 @@ describe('purchase decision engine', () => {
 
     expect(decision.landedCostDeltaToDutchMarketPct).toBeLessThan(-25);
     expect(decision.verdict).toBe('needs-data');
-    expect(decision.blockers.join(' ')).toContain('Manual BPM input required');
+    expect(decision.blockers.join(' ')).toContain('Handmatige BPM-invoer nodig');
   });
 
   it('marks a high landed cost candidate as avoid', () => {
@@ -148,6 +148,6 @@ describe('purchase decision engine', () => {
     const decision = decideFor(target, comps);
 
     expect(decision.verdict).toBe('avoid');
-    expect(decision.blockers.join(' ')).toContain('more than 5% above Dutch market median');
+    expect(decision.blockers.join(' ')).toContain('meer dan 5% boven de Nederlandse marktmediaan');
   });
 });

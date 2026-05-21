@@ -22,7 +22,7 @@ describe('purchase readiness gates', () => {
       expect(quality?.missingCriticalFields, decision.listingId).toEqual([]);
       expect(netRentalEstimate?.netAnnualRentalEur, decision.listingId).toBeGreaterThan(0);
       expect(decision.landedCostEur, decision.listingId).toBeLessThanOrEqual(decision.dutchMarketMedianEur * 1.05);
-      expect(decision.blockers, decision.listingId).not.toContain('Manual BPM input required before purchase decision.');
+      expect(decision.blockers, decision.listingId).not.toContain('Handmatige BPM-invoer nodig before purchase decision.');
 
       if (listing?.country !== 'NL') {
         expect(importEstimate?.needsManualBpm, decision.listingId).toBe(false);

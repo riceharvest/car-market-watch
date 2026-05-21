@@ -2,7 +2,7 @@ import type { Listing, RentalComparable, RentalSourceMetadata } from '../types';
 
 export type ListingActionLinks = {
   source: {
-    label: 'Actual listing';
+    label: 'Advertentie bekijken';
     url: string;
   };
 };
@@ -23,7 +23,7 @@ export type RentalCompetitorLink = {
 export function buildListingActionLinks(listing: Listing): ListingActionLinks {
   return {
     source: {
-      label: 'Actual listing',
+      label: 'Advertentie bekijken',
       url: listing.url,
     },
   };
@@ -65,7 +65,7 @@ export function buildRentalCompetitorLinks(
         basis: describeCompBasis(comp),
         notes: comp.sourceType === 'peer-to-peer'
           ? comp.availabilityNote
-          : `${comp.availabilityNote} Benchmark only; not owner payout.`,
+          : `${comp.availabilityNote} Alleen benchmark; geen uitbetaling aan eigenaar.`,
       };
     });
 }
@@ -112,6 +112,16 @@ function confidenceScore(confidence: RentalComparable['confidence']): number {
 }
 
 function describeCompBasis(comp: RentalComparable): string {
-  const model = [comp.anchors.make, comp.anchors.model].filter(Boolean).join(' ') || `${comp.vehicleClass} class`;
-  return `${model} · ${comp.city} · ${comp.anchors.year} · ${comp.anchors.fuel} · ${comp.anchors.transmission}`;
+  const model = [comp.anchors.make, comp.anchors.model].filter(Boolean).join(' ') || `${comp.vehicleClass} klasse`;
+  return `${model} · ${comp.city} · ${comp.anchors.year} · ${fuelLabel(comp.anchors.fuel)} · ${transmissionLabel(comp.anchors.transmission)}`;
+}
+
+function fuelLabel(fuel: string): string {
+  const labels: Record<string, string> = { petrol: 'benzine', diesel: 'diesel', hybrid: 'hybride', electric: 'elektrisch', lpg: 'lpg', unknown: 'onbekend' };
+  return labels[fuel] ?? fuel;
+}
+
+function transmissionLabel(transmission: string): string {
+  const labels: Record<string, string> = { manual: 'handgeschakeld', automatic: 'automaat', unknown: 'onbekend' };
+  return labels[transmission] ?? transmission;
 }

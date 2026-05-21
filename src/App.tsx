@@ -88,16 +88,69 @@ const sourceLabels: Record<MarketSource, string> = {
 };
 
 const sourceNotes: Record<MarketSource, string> = {
-  autoscout24: 'Rich listing metadata and cross-border dealer inventory.',
-  gaspedaal: 'NL aggregator signal for duplicate discovery and price checks.',
-  marktplaats: 'Private-party marketplace with fast-moving local opportunities.',
-  '2dehands': 'Belgian classifieds coverage for nearby import candidates.',
-  kleinanzeigen: 'German private listings for arbitrage and supply comparison.',
-  'mobile-de-api': 'Structured DE marketplace baseline when API access is available.',
+  autoscout24: 'Rijke listingdata en grensoverschrijdende dealer-voorraad.',
+  gaspedaal: 'Nederlandse aggregator voor duplicaten en prijschecks.',
+  marktplaats: 'Particuliere marktplaats met snel bewegende lokale kansen.',
+  '2dehands': 'Belgische advertenties voor importkandidaten dichtbij.',
+  kleinanzeigen: 'Duitse particuliere listings voor arbitrage en aanbodvergelijking.',
+  'mobile-de-api': 'Gestructureerde Duitse marktplaatsbasis wanneer API-toegang beschikbaar is.',
 };
 
 function formatSource(source: MarketSource): string {
   return sourceLabels[source] ?? source;
+}
+
+function fuelLabel(fuel: string): string {
+  const labels: Record<string, string> = {
+    petrol: 'benzine',
+    diesel: 'diesel',
+    hybrid: 'hybride',
+    electric: 'elektrisch',
+    lpg: 'lpg',
+    unknown: 'onbekend',
+  };
+  return labels[fuel] ?? fuel;
+}
+
+function transmissionLabel(transmission: string): string {
+  const labels: Record<string, string> = {
+    manual: 'handgeschakeld',
+    automatic: 'automaat',
+    unknown: 'onbekend',
+  };
+  return labels[transmission] ?? transmission;
+}
+
+function sellerLabel(sellerType: string): string {
+  const labels: Record<string, string> = {
+    dealer: 'dealer',
+    private: 'particulier',
+    unknown: 'onbekend',
+  };
+  return labels[sellerType] ?? sellerType;
+}
+
+function regionLabel(region: string): string {
+  const labels: Record<string, string> = {
+    'domestic-nl': 'binnenlands NL',
+    'eu-efta': 'EU/EFTA',
+    'non-eu': 'buiten EU',
+  };
+  return labels[region] ?? region;
+}
+
+function confidenceLabel(confidence: string | undefined): string {
+  if (confidence === 'high') return 'hoog';
+  if (confidence === 'medium') return 'gemiddeld';
+  if (confidence === 'low') return 'laag';
+  return 'onbekend';
+}
+
+function priorityLabel(priority: string | undefined): string {
+  if (priority === 'primary') return 'primair';
+  if (priority === 'benchmark') return 'vergelijkingspunt';
+  if (priority === 'skip') return 'overslaan';
+  return priority ?? 'vergelijkingspunt';
 }
 
 function uniqueSorted<T extends string>(values: T[]): T[] {
@@ -167,15 +220,25 @@ function average(values: number[]): number | undefined {
 }
 
 function formatPayback(months: number | null): string {
-  if (months === null || !Number.isFinite(months)) return 'n/a';
-  return `${Math.round(months)} mo`;
+  if (months === null || !Number.isFinite(months)) return 'n.v.t.';
+  return `${Math.round(months)} mnd`;
 }
 
 function verdictLabel(verdict: string): string {
-  return verdict.replace(/-/g, ' ');
+  const labels: Record<string, string> = {
+    'buy-now': 'Nu kopen',
+    negotiate: 'Onderhandelen',
+    watch: 'Volgen',
+    avoid: 'Vermijden',
+    'needs-data': 'Meer data nodig',
+    undervalued: 'Ondergewaardeerd',
+    fair: 'Redelijk',
+    expensive: 'Duur',
+  };
+  return labels[verdict] ?? verdict.replace(/-/g, ' ');
 }
 
-function PendingValue({ label = 'Pending benchmark' }: { label?: string }) {
+function PendingValue({ label = 'Vergelijking volgt' }: { label?: string }) {
   return <span className="pending-value">{label}</span>;
 }
 
@@ -202,21 +265,21 @@ function StatCard({
 function ListingLinks({ listing, rentalLinks }: { listing: Listing; rentalLinks: RentalCompetitorLink[] }) {
   const sourceLink = buildListingActionLinks(listing).source;
   return (
-    <div className="link-stack" aria-label={`Links for ${listing.make} ${listing.model}`}>
+    <div className="link-stack" aria-label={`Links voor ${listing.make} ${listing.model}`}>
       <a className="source-link" href={sourceLink.url} target="_blank" rel="noreferrer">
         <ExternalLink size={14} /> {sourceLink.label}
       </a>
       {rentalLinks.length > 0 ? (
         <div className="rental-link-list">
-          <span>Rental comps</span>
+          <span>Verhuurvergelijkingen</span>
           {rentalLinks.map((link) => (
             <a key={`${listing.id}-${link.source}`} href={link.url} target="_blank" rel="noreferrer" title={link.notes}>
-              {link.label} · {link.matchType === 'same-model' ? 'same model' : 'close spec'} · {eur.format(link.dailyRateEur)}/day
+              {link.label} · {link.matchType === 'same-model' ? 'zelfde model' : 'vergelijkbare specs'} · {eur.format(link.dailyRateEur)}/dag
             </a>
           ))}
         </div>
       ) : (
-        <span className="no-rental-links">No rental company match in snapshot</span>
+        <span className="no-rental-links">Geen match met verhuurbedrijf in snapshot</span>
       )}
     </div>
   );
@@ -253,28 +316,28 @@ function ListingCard({ item }: { item: EnrichedListing }) {
     <article className="listing-card">
       <div className="card-topline">
         <span>{formatSource(listing.source)} · {listing.country}</span>
-        <span className={`verdict ${valuation.verdict}`}>{valuation.verdict}</span>
+        <span className={`verdict ${valuation.verdict}`}>{verdictLabel(valuation.verdict)}</span>
       </div>
       <h3>{listing.title}</h3>
       <div className="price-row">
         <strong>{eur.format(listing.priceEur)}</strong>
         {dropped ? (
-          <span className="drop"><ArrowDownRight size={16} /> {eur.format(priceMove)} drop</span>
+          <span className="drop"><ArrowDownRight size={16} /> {eur.format(priceMove)} daling</span>
         ) : (
-          <span className="rise"><ArrowUpRight size={16} /> stable ask</span>
+          <span className="rise"><ArrowUpRight size={16} /> vraagprijs stabiel</span>
         )}
       </div>
       <dl>
-        <div><dt>Market delta</dt><dd>{percent.format(valuation.priceDeltaPct)}%</dd></div>
-        <div><dt>Median comp</dt><dd>{eur.format(valuation.marketMedianEur)}</dd></div>
-        <div><dt>Mileage</dt><dd>{km.format(listing.mileageKm)} km</dd></div>
-        <div><dt>Deal score</dt><dd>{valuation.dealScore}/100</dd></div>
-        <div><dt>Rental / day</dt><dd>{rental?.dailyEur ? eur.format(rental.dailyEur) : <PendingValue />}</dd></div>
-        <div><dt>Rent yield</dt><dd>{rental?.annualYieldPct ? `${percentPlain.format(rental.annualYieldPct)}%` : <PendingValue />}</dd></div>
+        <div><dt>Marktverschil</dt><dd>{percent.format(valuation.priceDeltaPct)}%</dd></div>
+        <div><dt>Mediaan comp</dt><dd>{eur.format(valuation.marketMedianEur)}</dd></div>
+        <div><dt>Kilometerstand</dt><dd>{km.format(listing.mileageKm)} km</dd></div>
+        <div><dt>Dealscore</dt><dd>{valuation.dealScore}/100</dd></div>
+        <div><dt>Verhuur / dag</dt><dd>{rental?.dailyEur ? eur.format(rental.dailyEur) : <PendingValue />}</dd></div>
+        <div><dt>Huurrendement</dt><dd>{rental?.annualYieldPct ? `${percentPlain.format(rental.annualYieldPct)}%` : <PendingValue />}</dd></div>
       </dl>
-      <p className="meta">{listing.year} · {listing.fuel} · {listing.transmission} · {listing.location} · {listing.sellerType}</p>
+      <p className="meta">{listing.year} · {fuelLabel(listing.fuel)} · {transmissionLabel(listing.transmission)} · {listing.location} · {sellerLabel(listing.sellerType)}</p>
       <div className="card-footer">
-        <span>{valuation.daysOnMarket} days watched</span>
+        <span>{valuation.daysOnMarket} dagen gevolgd</span>
       </div>
       <ListingLinks listing={listing} rentalLinks={item.rentalCompetitorLinks} />
     </article>
@@ -449,103 +512,103 @@ export default function App() {
     : [];
   const rentalSourceSummary = rentalSourceRows.length > 0
     ? rentalSourceRows
-      .map((item) => `${stringFrom(item.label) ?? stringFrom(item.id) ?? 'Rental source'}: ${stringFrom(item.scrapePriority) ?? 'benchmark'} · ${stringFrom(item.reliability) ?? 'unknown'} confidence`)
+      .map((item) => `${stringFrom(item.label) ?? stringFrom(item.id) ?? 'Verhuurbron'}: ${priorityLabel(stringFrom(item.scrapePriority))} · ${confidenceLabel(stringFrom(item.reliability))} betrouwbaarheid`)
       .join(' / ')
-    : 'SnappCar primary; Getaround API/paid only; MyWheels/Greenwheels and Sixt/Europcar benchmark-only.';
+    : 'SnappCar primair; Getaround alleen API/betaald; MyWheels/Greenwheels en Sixt/Europcar alleen als benchmark.';
 
   const snapshotFreshness = snapshotStatus === 'live'
-    ? `Loaded generated snapshot from ${new Date(snapshot.generatedAt).toLocaleString('nl-NL')}`
+    ? `Gegenereerde momentopname geladen van ${new Date(snapshot.generatedAt).toLocaleString('nl-NL')}`
     : snapshotStatus === 'loading'
-      ? 'Loading generated market snapshot…'
-      : 'Using built-in fallback snapshot; run pnpm data:build before deploying.';
+      ? 'Gegenereerde marktmomentopname laden…'
+      : 'Ingebouwde fallback-momentopname actief; draai pnpm data:build vóór deploy.';
 
   return (
     <main>
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow"><Database size={16} /> NL + nearby used-car market intelligence</p>
-          <h1>Find underpriced cars before the market catches up.</h1>
+          <p className="eyebrow"><Database size={16} /> NL + omliggende tweedehandsautomarkt-intelligentie</p>
+          <h1>Vind onderprijsde auto’s voordat de markt bijtrekt.</h1>
           <p className="lede">
-            A production-ready valuation dashboard for watching used-car listings, comparing local market medians,
-            spotting price drops, and prioritizing alerts from a generated static market snapshot.
+            Een productieklaar waarderingsdashboard om tweedehands auto’s te volgen, lokale marktmedianen te vergelijken,
+            prijsdalingen te spotten en alerts te prioriteren vanuit een gegenereerde statische marktmomentopname.
           </p>
           <div className="hero-actions">
-            <button><Bell size={18} /> Create watch alert</button>
-            <button className="secondary"><Car size={18} /> Review all listings</button>
+            <button><Bell size={18} /> Maak volgmelding</button>
+            <button className="secondary"><Car size={18} /> Bekijk alle advertenties</button>
           </div>
         </div>
         <aside className="hero-panel">
-          <div className="signal-badge"><Sparkles size={16} /> Best current signal</div>
+          <div className="signal-badge"><Sparkles size={16} /> Beste signaal nu</div>
           <strong>{best.listing.title}</strong>
           <p>{eur.format(best.listing.priceEur)} · {km.format(best.listing.mileageKm)} km · score {best.valuation.dealScore}</p>
           <div className="mini-metrics">
-            <span>{percent.format(best.valuation.priceDeltaPct)}% vs median</span>
-            <span>{best.valuation.comparableCount} comps</span>
+            <span>{percent.format(best.valuation.priceDeltaPct)}% vs mediaan</span>
+            <span>{best.valuation.comparableCount} vergelijkingen</span>
           </div>
           <p className="snapshot-status">{snapshotFreshness}</p>
         </aside>
       </section>
 
-      <section className="filters-panel" aria-label="Search and filters">
+      <section className="filters-panel" aria-label="Zoeken en filters">
         <div className="search-field">
           <Search size={18} />
           <input
             type="search"
-            placeholder="Search make, model, trim, location, fuel..."
+            placeholder="Zoek merk, model, uitvoering, locatie, brandstof..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <SelectControl label="Source" value={source} onChange={setSource}>
-          <option value="all">All sources</option>
+        <SelectControl label="Bron" value={source} onChange={setSource}>
+          <option value="all">Alle bronnen</option>
           {sources.map((item) => <option key={item} value={item}>{formatSource(item)}</option>)}
         </SelectControl>
-        <SelectControl label="Country" value={country} onChange={setCountry}>
-          <option value="all">All countries</option>
+        <SelectControl label="Land" value={country} onChange={setCountry}>
+          <option value="all">Alle landen</option>
           {countries.map((item) => <option key={item} value={item}>{item}</option>)}
         </SelectControl>
-        <SelectControl label="Signal" value={verdict} onChange={setVerdict}>
-          <option value="all">All signals</option>
-          <option value="undervalued">Undervalued</option>
-          <option value="fair">Fair</option>
-          <option value="watch">Watch</option>
-          <option value="expensive">Expensive</option>
+        <SelectControl label="Signaal" value={verdict} onChange={setVerdict}>
+          <option value="all">Alle signalen</option>
+          <option value="undervalued">Ondergewaardeerd</option>
+          <option value="fair">Redelijk</option>
+          <option value="watch">Volgen</option>
+          <option value="expensive">Duur</option>
         </SelectControl>
-        <SelectControl label="Sort" value={sortBy} onChange={(value) => setSortBy(value as SortKey)}>
-          <option value="score">Best deal score</option>
-          <option value="delta">Deepest discount</option>
-          <option value="newest">Newest seen</option>
-          <option value="price-low">Lowest price</option>
-          <option value="price-high">Highest price</option>
+        <SelectControl label="Sorteren" value={sortBy} onChange={(value) => setSortBy(value as SortKey)}>
+          <option value="score">Beste dealscore</option>
+          <option value="delta">Grootste korting</option>
+          <option value="newest">Nieuwst gezien</option>
+          <option value="price-low">Laagste prijs</option>
+          <option value="price-high">Hoogste prijs</option>
         </SelectControl>
       </section>
 
       <section className="stats-grid">
-        <StatCard label="Listings in view" value={String(filteredListings.length)} detail={`${snapshot.summary.listingCount} tracked snapshot listings`} tone="accent" />
-        <StatCard label="Sources covered" value={String(sources.length)} detail="Marketplaces and aggregators modeled" />
-        <StatCard label="Average ask" value={eur.format(averagePrice)} detail="Current filtered inventory" />
-        <StatCard label="Price-drop value" value={eur.format(totalPriceDrops)} detail={`${undervaluedCount} undervalued candidates`} tone="good" />
+        <StatCard label="Advertenties in beeld" value={String(filteredListings.length)} detail={`${snapshot.summary.listingCount} gevolgde momentopname-advertenties`} tone="accent" />
+        <StatCard label="Bronnen gedekt" value={String(sources.length)} detail="Marktplaatsen en aggregators gemodelleerd" />
+        <StatCard label="Gemiddelde vraagprijs" value={eur.format(averagePrice)} detail="Huidige gefilterde voorraad" />
+        <StatCard label="Waarde prijsdalingen" value={eur.format(totalPriceDrops)} detail={`${undervaluedCount} ondergewaardeerde kandidaten`} tone="good" />
         <StatCard
-          label="Estimated rental/day"
-          value={averageDailyRental > 0 ? eur.format(averageDailyRental) : 'Pending'}
-          detail={rentalEstimates.length > 0 ? `${rentalEstimates.length} rental benchmarks matched` : 'Awaiting SnappCar/API rental comps'}
+          label="Geschatte verhuur/dag"
+          value={averageDailyRental > 0 ? eur.format(averageDailyRental) : 'Volgt'}
+          detail={rentalEstimates.length > 0 ? `${rentalEstimates.length} verhuurvergelijkingen gevonden` : 'Wacht op SnappCar/API-verhuurcomps'}
           tone="accent"
         />
         <StatCard
-          label="Monthly rental gross"
-          value={averageMonthlyGross > 0 ? eur.format(averageMonthlyGross) : 'Pending'}
-          detail="Modeled before platform fees, cleaning and downtime"
+          label="Bruto verhuur per maand"
+          value={averageMonthlyGross > 0 ? eur.format(averageMonthlyGross) : 'Volgt'}
+          detail="Gemodelleerd vóór platformkosten, schoonmaak en stilstand"
         />
         <StatCard
-          label="Annual rent yield"
-          value={averageAnnualYield > 0 ? `${percentPlain.format(averageAnnualYield)}%` : 'Pending'}
-          detail="Gross ROI against current asking price"
+          label="Jaarlijks huurrendement"
+          value={averageAnnualYield > 0 ? `${percentPlain.format(averageAnnualYield)}%` : 'Volgt'}
+          detail="Bruto ROI t.o.v. huidige vraagprijs"
           tone={averageAnnualYield >= 15 ? 'good' : 'neutral'}
         />
         <StatCard
-          label="Best rent-yield candidate"
-          value={bestRentalYield ? `${percentPlain.format(bestRentalYield.rental.annualYieldPct ?? 0)}%` : 'Pending'}
-          detail={bestRentalYield ? `${bestRentalYield.item.listing.make} ${bestRentalYield.item.listing.model} · ${eur.format(bestRentalYield.item.listing.priceEur)}` : 'No rental ROI estimate yet'}
+          label="Beste huurrendement-kandidaat"
+          value={bestRentalYield ? `${percentPlain.format(bestRentalYield.rental.annualYieldPct ?? 0)}%` : 'Volgt'}
+          detail={bestRentalYield ? `${bestRentalYield.item.listing.make} ${bestRentalYield.item.listing.model} · ${eur.format(bestRentalYield.item.listing.priceEur)}` : 'Nog geen verhuur-ROI-schatting'}
           tone="good"
         />
       </section>
@@ -553,10 +616,10 @@ export default function App() {
       <section className="panel purchase-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow"><WalletCards size={16} /> purchase decision</p>
-            <h2>Which car should I buy?</h2>
+            <p className="eyebrow"><WalletCards size={16} /> koopbeslissing</p>
+            <h2>Welke auto moet ik kopen?</h2>
           </div>
-          <p>Ranks filtered candidates by landed cost, Dutch market upside, net rental return, payback, import complexity and data confidence.</p>
+          <p>Rangschikt gefilterde kandidaten op landingskosten, Nederlandse markt-upside, netto verhuurrendement, terugverdientijd, importcomplexiteit en databetrouwbaarheid.</p>
         </div>
         <div className="purchase-layout">
           <div className="purchase-ranking">
@@ -564,16 +627,16 @@ export default function App() {
               <table className="purchase-table">
                 <thead>
                   <tr>
-                    <th>Rank</th>
-                    <th>Car / source</th>
-                    <th>Ask</th>
-                    <th>Landed NL</th>
-                    <th>NL delta</th>
-                    <th>Net yield</th>
-                    <th>Payback</th>
+                    <th>Rang</th>
+                    <th>Auto / bron</th>
+                    <th>Vraagprijs</th>
+                    <th>Geland NL</th>
+                    <th>NL-verschil</th>
+                    <th>Netto rendement</th>
+                    <th>Terugverdientijd</th>
                     <th>Score</th>
-                    <th>Verdict</th>
-                    <th>Top reasons / blockers</th>
+                    <th>Oordeel</th>
+                    <th>Belangrijkste redenen / blokkades</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -594,9 +657,9 @@ export default function App() {
                         <td className={decision.landedCostDeltaToDutchMarketPct <= 0 ? 'positive' : 'negative'}>{percent.format(decision.landedCostDeltaToDutchMarketPct)}%</td>
                         <td>{percentPlain.format(decision.netRentalYieldPct)}%</td>
                         <td>{formatPayback(decision.paybackMonths)}</td>
-                        <td><strong>{decision.purchaseScore}</strong><span>conf {decision.dataConfidenceScore}</span></td>
+                        <td><strong>{decision.purchaseScore}</strong><span>vertr. {decision.dataConfidenceScore}</span></td>
                         <td><span className={`purchase-verdict ${decision.verdict}`}>{verdictLabel(decision.verdict)}</span></td>
-                        <td className="reason-cell">{notes.length > 0 ? notes.map((note) => <span key={note}>{note}</span>) : <PendingValue label="No notes" />}</td>
+                        <td className="reason-cell">{notes.length > 0 ? notes.map((note) => <span key={note}>{note}</span>) : <PendingValue label="Geen notities" />}</td>
                       </tr>
                     );
                   })}
@@ -604,78 +667,78 @@ export default function App() {
               </table>
             </div>
             {purchaseDisplayRows.hiddenPurchaseRowCount > 0 && (
-              <p className="limit-note">Showing the top {purchaseDisplayRows.purchaseRows.length} purchase candidates. Narrow filters/search to inspect the remaining {purchaseDisplayRows.hiddenPurchaseRowCount} without freezing mobile.</p>
+              <p className="limit-note">Toont de top {purchaseDisplayRows.purchaseRows.length} koopkandidaten. Verfijn filters/zoekopdracht om de overige {purchaseDisplayRows.hiddenPurchaseRowCount} te bekijken zonder mobiel vast te laten lopen.</p>
             )}
-            {filteredPurchaseCandidates.length === 0 && <div className="empty-state"><Target size={20} /> No purchase decisions match the active filters.</div>}
+            {filteredPurchaseCandidates.length === 0 && <div className="empty-state"><Target size={20} /> Geen koopbeslissingen passen bij de actieve filters.</div>}
           </div>
 
           {selectedPurchaseCandidate && (
-            <aside className="candidate-detail" aria-label="Selected purchase candidate details">
+            <aside className="candidate-detail" aria-label="Details geselecteerde koopkandidaat">
               <div className="candidate-detail-header">
                 <span className={`purchase-verdict ${selectedPurchaseCandidate.decision.verdict}`}>{verdictLabel(selectedPurchaseCandidate.decision.verdict)}</span>
                 <strong>{selectedPurchaseCandidate.listing.title}</strong>
-                <p>{formatSource(selectedPurchaseCandidate.listing.source)} · {selectedPurchaseCandidate.listing.country} · {km.format(selectedPurchaseCandidate.listing.mileageKm)} km · {selectedPurchaseCandidate.listing.sellerType}</p>
+                <p>{formatSource(selectedPurchaseCandidate.listing.source)} · {selectedPurchaseCandidate.listing.country} · {km.format(selectedPurchaseCandidate.listing.mileageKm)} km · {sellerLabel(selectedPurchaseCandidate.listing.sellerType)}</p>
               </div>
 
               <div className="detail-metric-grid">
-                <div><span>Landed cost</span><strong>{eur.format(selectedPurchaseCandidate.decision.landedCostEur)}</strong></div>
-                <div><span>Purchase score</span><strong>{selectedPurchaseCandidate.decision.purchaseScore}/100</strong></div>
-                <div><span>Net annual rental</span><strong>{eur.format(selectedPurchaseCandidate.decision.netAnnualRentalEur)}</strong></div>
-                <div><span>Payback</span><strong>{formatPayback(selectedPurchaseCandidate.decision.paybackMonths)}</strong></div>
+                <div><span>Landingskosten</span><strong>{eur.format(selectedPurchaseCandidate.decision.landedCostEur)}</strong></div>
+                <div><span>Koopscore</span><strong>{selectedPurchaseCandidate.decision.purchaseScore}/100</strong></div>
+                <div><span>Netto jaarverhuur</span><strong>{eur.format(selectedPurchaseCandidate.decision.netAnnualRentalEur)}</strong></div>
+                <div><span>Terugverdientijd</span><strong>{formatPayback(selectedPurchaseCandidate.decision.paybackMonths)}</strong></div>
               </div>
 
               <div className="detail-block">
-                <h3><CheckCircle2 size={17} /> Reasons to buy</h3>
+                <h3><CheckCircle2 size={17} /> Redenen om te kopen</h3>
                 <ul>
                   {selectedPurchaseCandidate.decision.reasons.length > 0
                     ? selectedPurchaseCandidate.decision.reasons.map((reason) => <li key={reason}>{reason}</li>)
-                    : <li>No positive purchase reasons were generated.</li>}
+                    : <li>Er zijn geen positieve koopredenen gegenereerd.</li>}
                 </ul>
               </div>
 
               <div className="detail-block warning">
-                <h3><AlertTriangle size={17} /> Blockers and warnings</h3>
+                <h3><AlertTriangle size={17} /> Blokkades en waarschuwingen</h3>
                 <ul>
                   {[...selectedPurchaseCandidate.decision.blockers, ...(selectedPurchaseCandidate.qualityReport?.warnings ?? [])].length > 0
                     ? [...selectedPurchaseCandidate.decision.blockers, ...(selectedPurchaseCandidate.qualityReport?.warnings ?? [])].map((warning) => <li key={warning}>{warning}</li>)
-                    : <li>No blocking issues in the current snapshot.</li>}
+                    : <li>Geen blokkades in de huidige momentopname.</li>}
                 </ul>
               </div>
 
               <div className="detail-block">
-                <h3><WalletCards size={17} /> Landed cost breakdown</h3>
+                <h3><WalletCards size={17} /> Opbouw landingskosten</h3>
                 {selectedPurchaseCandidate.importEstimate ? (
                   <dl className="detail-list">
-                    <div><dt>Asking price</dt><dd>{eur.format(selectedPurchaseCandidate.listing.priceEur)}</dd></div>
+                    <div><dt>Vraagprijs</dt><dd>{eur.format(selectedPurchaseCandidate.listing.priceEur)}</dd></div>
                     <div><dt>Transport</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.transportEur)}</dd></div>
-                    <div><dt>RDW + plates</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.rdwInspectionEur + selectedPurchaseCandidate.importEstimate.platesAndRegistrationEur)}</dd></div>
-                    <div><dt>BPM estimate</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.bpmEstimateEur)}{selectedPurchaseCandidate.importEstimate.needsManualBpm ? ' · manual check' : ''}</dd></div>
-                    <div><dt>VAT / duty / buffer</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.vatEstimateEur + selectedPurchaseCandidate.importEstimate.customsDutyEstimateEur + selectedPurchaseCandidate.importEstimate.adminBufferEur)}</dd></div>
-                    <div><dt>Region</dt><dd>{selectedPurchaseCandidate.importEstimate.region}</dd></div>
+                    <div><dt>RDW + kentekenplaten</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.rdwInspectionEur + selectedPurchaseCandidate.importEstimate.platesAndRegistrationEur)}</dd></div>
+                    <div><dt>BPM-schatting</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.bpmEstimateEur)}{selectedPurchaseCandidate.importEstimate.needsManualBpm ? ' · handmatige check' : ''}</dd></div>
+                    <div><dt>Btw / invoerrechten / buffer</dt><dd>{eur.format(selectedPurchaseCandidate.importEstimate.vatEstimateEur + selectedPurchaseCandidate.importEstimate.customsDutyEstimateEur + selectedPurchaseCandidate.importEstimate.adminBufferEur)}</dd></div>
+                    <div><dt>Regio</dt><dd>{regionLabel(selectedPurchaseCandidate.importEstimate.region)}</dd></div>
                   </dl>
-                ) : <p className="muted-copy">No import estimate is available for this candidate.</p>}
+                ) : <p className="muted-copy">Geen importschatting beschikbaar voor deze kandidaat.</p>}
                 {selectedPurchaseCandidate.importEstimate?.assumptions.length ? (
                   <ul className="assumption-list">{selectedPurchaseCandidate.importEstimate.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>
                 ) : null}
               </div>
 
               <div className="detail-block">
-                <h3><Info size={17} /> Rental and data quality</h3>
+                <h3><Info size={17} /> Verhuur en datakwaliteit</h3>
                 {selectedPurchaseCandidate.netRentalEstimate ? (
                   <dl className="detail-list">
-                    <div><dt>Monthly gross</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.monthlyGrossEur)}</dd></div>
-                    <div><dt>Monthly net</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.netMonthlyRentalEur)}</dd></div>
-                    <div><dt>Net yield on landed cost</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.netRentalYieldOnLandedCostPct)}%</dd></div>
-                    <div><dt>Platform / reserves</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.platformFeePct)}% fee · {percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.downtimeReservePct)}% downtime</dd></div>
+                    <div><dt>Bruto per maand</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.monthlyGrossEur)}</dd></div>
+                    <div><dt>Netto per maand</dt><dd>{eur.format(selectedPurchaseCandidate.netRentalEstimate.netMonthlyRentalEur)}</dd></div>
+                    <div><dt>Netto rendement op landingskosten</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.netRentalYieldOnLandedCostPct)}%</dd></div>
+                    <div><dt>Platform / reserves</dt><dd>{percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.platformFeePct)}% kosten · {percentPlain.format(selectedPurchaseCandidate.netRentalEstimate.assumptions.downtimeReservePct)}% stilstand</dd></div>
                   </dl>
-                ) : <p className="muted-copy">No net rental estimate is available for this candidate.</p>}
-                <p className="quality-line">Quality: {selectedPurchaseCandidate.qualityReport?.confidence ?? 'unknown'} · completeness {selectedPurchaseCandidate.qualityReport?.completenessPct ?? selectedPurchaseCandidate.decision.dataConfidenceScore}%</p>
+                ) : <p className="muted-copy">Geen netto verhuurschatting beschikbaar voor deze kandidaat.</p>}
+                <p className="quality-line">Kwaliteit: {confidenceLabel(selectedPurchaseCandidate.qualityReport?.confidence)} · volledigheid {selectedPurchaseCandidate.qualityReport?.completenessPct ?? selectedPurchaseCandidate.decision.dataConfidenceScore}%</p>
                 {selectedPurchaseCandidate.qualityReport?.missingCriticalFields.length ? (
-                  <p className="quality-line">Missing: {selectedPurchaseCandidate.qualityReport.missingCriticalFields.join(', ')}</p>
+                  <p className="quality-line">Ontbreekt: {selectedPurchaseCandidate.qualityReport.missingCriticalFields.join(', ')}</p>
                 ) : null}
               </div>
               <div className="detail-block">
-                <h3><ExternalLink size={17} /> Listing and rental-market links</h3>
+                <h3><ExternalLink size={17} /> Advertentie- en verhuurmarktlinks</h3>
                 <ListingLinks listing={selectedPurchaseCandidate.listing} rentalLinks={selectedPurchaseCandidate.rentalCompetitorLinks} />
               </div>
             </aside>
@@ -683,27 +746,27 @@ export default function App() {
         </div>
       </section>
 
-      <section className="country-import-grid" aria-label="Country and import comparison">
+      <section className="country-import-grid" aria-label="Landen- en importvergelijking">
         {countryPurchaseSummaries.map((summary) => (
           <article className="country-card" key={summary.country}>
             <div className="country-card-top">
               <span>{summary.country}</span>
-              <strong>{summary.count} candidates</strong>
+              <strong>{summary.count} kandidaten</strong>
             </div>
             <dl>
-              <div><dt>Avg listed price</dt><dd>{summary.averageListedPrice ? eur.format(summary.averageListedPrice) : 'n/a'}</dd></div>
-              <div><dt>Avg landed NL</dt><dd>{summary.averageLandedCost ? eur.format(summary.averageLandedCost) : 'n/a'}</dd></div>
-              <div><dt>Avg net yield</dt><dd>{summary.averageYield ? `${percentPlain.format(summary.averageYield)}%` : 'n/a'}</dd></div>
-              <div><dt>Complexity</dt><dd>{summary.averageComplexity ? `${Math.round(summary.averageComplexity)}/100` : 'n/a'}</dd></div>
+              <div><dt>Gem. vraagprijs</dt><dd>{summary.averageListedPrice ? eur.format(summary.averageListedPrice) : 'n.v.t.'}</dd></div>
+              <div><dt>Gem. geland NL</dt><dd>{summary.averageLandedCost ? eur.format(summary.averageLandedCost) : 'n.v.t.'}</dd></div>
+              <div><dt>Gem. netto rendement</dt><dd>{summary.averageYield ? `${percentPlain.format(summary.averageYield)}%` : 'n.v.t.'}</dd></div>
+              <div><dt>Complexiteit</dt><dd>{summary.averageComplexity ? `${Math.round(summary.averageComplexity)}/100` : 'n.v.t.'}</dd></div>
             </dl>
             <p className={summary.manualBpmCount > 0 || (summary.averageComplexity ?? 100) < 70 ? 'import-warning' : 'import-ok'}>
               {summary.manualBpmCount > 0 || (summary.averageComplexity ?? 100) < 70
-                ? `${summary.manualBpmCount} need manual BPM/import review`
-                : 'Low import friction in current snapshot'}
+                ? `${summary.manualBpmCount} hebben handmatige BPM/importcheck nodig`
+                : 'Lage importfrictie in huidige momentopname'}
             </p>
             {summary.bestCandidate && (
               <button className="country-pick" onClick={() => setSelectedPurchaseId(summary.bestCandidate!.listing.id)}>
-                Best: {summary.bestCandidate.listing.make} {summary.bestCandidate.listing.model} · score {summary.bestCandidate.decision.purchaseScore}
+                Beste: {summary.bestCandidate.listing.make} {summary.bestCandidate.listing.model} · score {summary.bestCandidate.decision.purchaseScore}
               </button>
             )}
           </article>
@@ -713,14 +776,14 @@ export default function App() {
       <section className="panel chart-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow"><Gauge size={16} /> valuation</p>
-            <h2>Asking price vs comparable median</h2>
+            <p className="eyebrow"><Gauge size={16} /> waardering</p>
+            <h2>Vraagprijs vs vergelijkbare mediaan</h2>
           </div>
-          <p>Valuation uses same make/model, ±2 years, ±40k km and compatible fuel from the existing domain helpers.</p>
+          <p>Waardering gebruikt hetzelfde merk/model, ±2 jaar, ±40k km en compatibele brandstof via de bestaande domeinlogica.</p>
         </div>
         <div className="chart-wrap">
           {filteredDisplayRows.hiddenChartRowCount > 0 && (
-            <p className="limit-note chart-limit">Chart renders the top {filteredDisplayRows.chartRows.length} matches for mobile performance; filters still apply across all {filteredListings.length} rows.</p>
+            <p className="limit-note chart-limit">Grafiek toont de top {filteredDisplayRows.chartRows.length} resultaten voor mobiele snelheid; filters gelden nog steeds voor alle {filteredListings.length} rijen.</p>
           )}
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={340}>
@@ -730,17 +793,17 @@ export default function App() {
                 <YAxis stroke="#607d8b" tickFormatter={(value) => `€${Number(value) / 1000}k`} width={58} />
                 <Tooltip
                   cursor={{ fill: 'rgba(25, 118, 210, 0.08)' }}
-                  formatter={(value, name) => [eur.format(Number(value)), name === 'asking' ? 'Asking price' : 'Comparable median']}
+                  formatter={(value, name) => [eur.format(Number(value)), name === 'asking' ? 'Vraagprijs' : 'Vergelijkbare mediaan']}
                   contentStyle={{ background: '#ffffff', border: '1px solid #cfd8dc', borderRadius: 4, color: '#263238' }}
                   labelStyle={{ color: '#1976d2' }}
                 />
                 <Legend wrapperStyle={{ color: '#607d8b' }} />
-                <Bar dataKey="median" fill="#90a4ae" radius={[3, 3, 0, 0]} name="Comparable median" />
-                <Bar dataKey="asking" fill="#1976d2" radius={[3, 3, 0, 0]} name="Asking price" />
+                <Bar dataKey="median" fill="#90a4ae" radius={[3, 3, 0, 0]} name="Vergelijkbare mediaan" />
+                <Bar dataKey="asking" fill="#1976d2" radius={[3, 3, 0, 0]} name="Vraagprijs" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="empty-state"><Filter size={20} /> No listings match these filters.</div>
+            <div className="empty-state"><Filter size={20} /> Geen listings passen bij deze filters.</div>
           )}
         </div>
       </section>
@@ -748,39 +811,39 @@ export default function App() {
       <section className="panel listings-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow"><Clock size={16} /> live watchlist</p>
-            <h2>Comparable listings</h2>
+            <p className="eyebrow"><Clock size={16} /> live volglijst</p>
+            <h2>Vergelijkbare advertenties</h2>
           </div>
-          <p>Sorted and filtered locally. Cards highlight price movement, market delta, days watched and source links.</p>
+          <p>Lokaal gesorteerd en gefilterd. Kaarten tonen prijsbeweging, marktverschil, gevolgde dagen en bronlinks.</p>
         </div>
         <div className="listing-grid">
           {filteredDisplayRows.listingCards.map((item) => <ListingCard key={item.listing.id} item={item} />)}
         </div>
         {filteredDisplayRows.hiddenListingCardCount > 0 && (
-          <p className="limit-note">Showing the top {filteredDisplayRows.listingCards.length} listing cards. Use search/filters for the other {filteredDisplayRows.hiddenListingCardCount} matches.</p>
+          <p className="limit-note">Toont de top {filteredDisplayRows.listingCards.length} advertentiekaarten. Gebruik zoeken/filters voor de andere {filteredDisplayRows.hiddenListingCardCount} resultaten.</p>
         )}
-        {filteredListings.length === 0 && <div className="empty-state"><Search size={20} /> Try widening your filters or clearing the search query.</div>}
+        {filteredListings.length === 0 && <div className="empty-state"><Search size={20} /> Maak je filters ruimer of wis de zoekopdracht.</div>}
       </section>
 
       <section className="panel table-panel">
         <div className="section-heading compact">
           <div>
-            <p className="eyebrow"><Target size={16} /> analyst table</p>
-            <h2>Deal queue</h2>
+            <p className="eyebrow"><Target size={16} /> analistentabel</p>
+            <h2>Dealwachtrij</h2>
           </div>
         </div>
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Listing</th>
+                <th>Advertentie</th>
                 <th>Links</th>
-                <th>Source</th>
-                <th>Ask</th>
-                <th>Median</th>
-                <th>Delta</th>
-                <th>Rent/day</th>
-                <th>Rent yield</th>
+                <th>Bron</th>
+                <th>Vraagprijs</th>
+                <th>Mediaan</th>
+                <th>Verschil</th>
+                <th>Verhuur/dag</th>
+                <th>Huurrendement</th>
                 <th>Score</th>
                 <th>Status</th>
               </tr>
@@ -793,7 +856,7 @@ export default function App() {
                   <tr key={`row-${listing.id}`}>
                     <td><strong>{listing.make} {listing.model}</strong><span>{listing.year} · {km.format(listing.mileageKm)} km · {listing.location}</span></td>
                     <td className="table-link-cell">
-                      <a href={listing.url} target="_blank" rel="noreferrer">Actual</a>
+                      <a href={listing.url} target="_blank" rel="noreferrer">Advertentie</a>
                       {item.rentalCompetitorLinks.slice(0, 2).map((link) => (
                         <a key={`table-${listing.id}-${link.source}`} href={link.url} target="_blank" rel="noreferrer">{link.label}</a>
                       ))}
@@ -805,7 +868,7 @@ export default function App() {
                     <td>{rental?.dailyEur ? eur.format(rental.dailyEur) : <PendingValue />}</td>
                     <td>{rental?.annualYieldPct ? `${percentPlain.format(rental.annualYieldPct)}%` : <PendingValue />}</td>
                     <td>{valuation.dealScore}</td>
-                    <td><span className={`verdict ${valuation.verdict}`}>{valuation.verdict}</span></td>
+                    <td><span className={`verdict ${valuation.verdict}`}>{verdictLabel(valuation.verdict)}</span></td>
                   </tr>
                 );
               })}
@@ -813,30 +876,30 @@ export default function App() {
           </table>
         </div>
         {filteredDisplayRows.hiddenAnalystRowCount > 0 && (
-          <p className="limit-note">Showing the first {filteredDisplayRows.analystRows.length} deal queue rows; {filteredDisplayRows.hiddenAnalystRowCount} more stay filterable without rendering into the DOM.</p>
+          <p className="limit-note">Toont de eerste {filteredDisplayRows.analystRows.length} dealwachtrij-rijen; {filteredDisplayRows.hiddenAnalystRowCount} extra blijven filterbaar zonder in de pagina te renderen.</p>
         )}
       </section>
 
       <section className="coverage-grid">
         <article className="panel alert-panel">
-          <p className="eyebrow"><Bell size={16} /> alert workflow</p>
-          <h2>Watchlists without backend assumptions</h2>
+          <p className="eyebrow"><Bell size={16} /> alert-workflow</p>
+          <h2>Volglijsten zonder server-aannames</h2>
           <p>
-            Saved searches can monitor model, budget, mileage, countries and trusted sources. When snapshots arrive,
-            alerts should trigger on fresh under-market listings, meaningful price drops, and long-watched cars that
-            cross a deal-score threshold.
+            Opgeslagen zoekopdrachten kunnen model, budget, kilometerstand, landen en vertrouwde bronnen volgen. Wanneer momentopnames binnenkomen,
+            moeten alerts afgaan op nieuwe onder-markt advertenties, relevante prijsdalingen en lang gevolgde auto’s die
+            een dealscore-drempel passeren.
           </p>
           <ul>
-            <li><CheckCircle2 size={17} /> Deep discount against comparable median</li>
-            <li><CheckCircle2 size={17} /> Price drop from previous snapshot</li>
-            <li><CheckCircle2 size={17} /> Confidence-aware source prioritization</li>
-            <li><CheckCircle2 size={17} /> Chunked static JSON artifacts at /data/market-snapshot-manifest.json</li>
+            <li><CheckCircle2 size={17} /> Grote korting t.o.v. vergelijkbare mediaan</li>
+            <li><CheckCircle2 size={17} /> Prijsdaling sinds vorige momentopname</li>
+            <li><CheckCircle2 size={17} /> Bronprioritering op basis van betrouwbaarheid</li>
+            <li><CheckCircle2 size={17} /> Statische JSON-chunks op /data/market-snapshot-manifest.json</li>
           </ul>
         </article>
 
         <article className="panel coverage-panel">
-          <p className="eyebrow"><Globe2 size={16} /> source coverage</p>
-          <h2>Marketplace readiness</h2>
+          <p className="eyebrow"><Globe2 size={16} /> brondekking</p>
+          <h2>Marktplaats-gereedheid</h2>
           <div className="source-list">
             {coverage.map(({ source: marketSource, rows, countriesCovered, highConfidence }) => (
               <div className="source-row" key={marketSource}>
@@ -844,7 +907,7 @@ export default function App() {
                   <strong>{formatSource(marketSource)}</strong>
                   <p>{snapshot.sources.find((item) => item.id === marketSource)?.robotsNote ?? sourceNotes[marketSource]}</p>
                 </div>
-                <span>{rows.length} listings · {countriesCovered || '—'} · {highConfidence} high confidence</span>
+                <span>{rows.length} advertenties · {countriesCovered || '—'} · {highConfidence} hoge betrouwbaarheid</span>
               </div>
             ))}
           </div>
@@ -854,37 +917,37 @@ export default function App() {
       <section className="panel rental-methodology-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow"><Sparkles size={16} /> rental ROI</p>
-            <h2>Owner-rental benchmark confidence</h2>
+            <p className="eyebrow"><Sparkles size={16} /> verhuur-ROI</p>
+            <h2>Betrouwbaarheid verhuurvergelijking eigenaar</h2>
           </div>
-          <p>Rental estimates are shown only when the generated snapshot includes defensible comp data; otherwise cards stay in pending state.</p>
+          <p>Verhuurschattingen worden alleen getoond wanneer de gegenereerde momentopname verdedigbare vergelijkingsdata bevat; anders blijven kaarten op ‘volgt’ staan.</p>
         </div>
         <div className="rental-source-grid">
           <div className="rental-source-card primary">
-            <strong>Snapshot confidence</strong>
+            <strong>Momentopname-betrouwbaarheid</strong>
             <p>{rentalSourceSummary}</p>
           </div>
           <div className="rental-source-card primary">
-            <strong>SnappCar first</strong>
-            <p>Preferred owner-rental comparable surface for NL/BE car-share day rates, with confidence tied to make/model, age, location and sample count.</p>
+            <strong>SnappCar eerst</strong>
+            <p>Voorkeursbron voor eigenaar-verhuurvergelijkingen in NL/BE dagtarieven, met betrouwbaarheid gekoppeld aan merk/model, leeftijd, locatie en samplegrootte.</p>
           </div>
           <div className="rental-source-card">
-            <strong>Getaround via API/paid only</strong>
-            <p>Use only structured or licensed access; search scraping is not assumed because robots restrictions disallow it.</p>
+            <strong>Getaround alleen via API/betaald</strong>
+            <p>Gebruik alleen gestructureerde of gelicentieerde toegang; scraping van zoekresultaten wordt niet aangenomen omdat robots-regels dit verbieden.</p>
           </div>
           <div className="rental-source-card">
-            <strong>Benchmarks, not direct comps</strong>
-            <p>MyWheels/Greenwheels fleet rates and Sixt/Europcar commercial pricing can calibrate ceilings, but should carry lower confidence than owner-rental comps.</p>
+            <strong>Vergelijkingspunten, geen directe vergelijkingen</strong>
+            <p>MyWheels/Greenwheels vloottarieven en Sixt/Europcar commerciële prijzen kunnen plafonds kalibreren, maar krijgen lagere betrouwbaarheid dan eigenaar-verhuurvergelijkingen.</p>
           </div>
           <div className="rental-source-card muted">
-            <strong>Turo skipped</strong>
-            <p>Excluded from the default NL workflow; estimates remain pending unless a future data snapshot provides an allowed source.</p>
+            <strong>Turo overgeslagen</strong>
+            <p>Uitgesloten van de standaard NL-workflow; schattingen blijven ‘volgt’ tenzij een toekomstige datamomentopname een toegestane bron levert.</p>
           </div>
         </div>
       </section>
 
       <footer>
-        <ShieldCheck size={16} /> Static snapshot driven · valuation logic tested · ready for Vercel deployment.
+        <ShieldCheck size={16} /> Draait op statische momentopnames · waarderingslogica getest · klaar voor Vercel-uitrol.
       </footer>
     </main>
   );

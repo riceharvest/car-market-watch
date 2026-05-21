@@ -146,7 +146,7 @@ describe('market snapshot generation', () => {
     expect(snapshot.sources[0]).toEqual(expect.objectContaining({ id: expect.any(String), robotsNote: expect.any(String) }));
     expect(snapshot.rentalSources).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'snappcar', scrapePriority: 'primary', feasibilityNote: expect.stringContaining('No open public API') }),
+        expect.objectContaining({ id: 'snappcar', scrapePriority: 'primary', feasibilityNote: expect.stringContaining('Geen open publieke API') }),
         expect.objectContaining({ id: 'getaround', scrapePriority: 'skip', access: 'paid-data-provider' }),
         expect.objectContaining({ id: 'turo', scrapePriority: 'skip', access: 'skip-scraping' }),
       ]),

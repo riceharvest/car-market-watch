@@ -12,14 +12,14 @@ export function buildDataQualityReport(listing: Listing, context: DataQualityCon
     if (!present && critical) missingCriticalFields.push(field);
   };
 
-  addCheck('price', hasPositiveNumber(listing.priceEur));
-  addCheck('country', hasValue(listing.country));
-  addCheck('source URL', hasValue(listing.url));
-  addCheck('year or first registration date', hasPositiveNumber(listing.year) || hasValue(listing.firstRegistrationDate));
-  addCheck('mileage', hasNonNegativeNumber(listing.mileageKm));
-  addCheck('fuel', hasKnownValue(listing.fuel));
-  addCheck('transmission', hasKnownValue(listing.transmission));
-  addCheck('location', hasValue(listing.location));
+  addCheck('prijs', hasPositiveNumber(listing.priceEur));
+  addCheck('land', hasValue(listing.country));
+  addCheck('bron-URL', hasValue(listing.url));
+  addCheck('bouwjaar of eerste registratiedatum', hasPositiveNumber(listing.year) || hasValue(listing.firstRegistrationDate));
+  addCheck('kilometerstand', hasNonNegativeNumber(listing.mileageKm));
+  addCheck('brandstof', hasKnownValue(listing.fuel));
+  addCheck('transmissie', hasKnownValue(listing.transmission));
+  addCheck('locatie', hasValue(listing.location));
 
   const imported = isImportedListing(listing);
   if (imported) {
@@ -28,10 +28,10 @@ export function buildDataQualityReport(listing: Listing, context: DataQualityCon
       hasPositiveNumber(listing.co2GPerKm) ||
       hasNonNegativeNumber(listing.bpmOverrideEur) ||
       (!importNeedsManualBpm && hasNonNegativeNumber(context.importEstimate?.bpmEur));
-    addCheck('CO2 or BPM override for import', hasBpmInput);
+    addCheck('CO2 of BPM-override voor import', hasBpmInput);
     if (!hasBpmInput || importNeedsManualBpm) {
-      pushUnique(missingCriticalFields, 'CO2 or BPM override for import');
-      warnings.push('Imported listing is missing CO2/BPM override/manual BPM input; BPM confidence is low until supplied.');
+      pushUnique(missingCriticalFields, 'CO2 of BPM-override voor import');
+      warnings.push('Importlisting mist CO2/BPM-override/handmatige BPM-invoer; BPM-betrouwbaarheid blijft laag tot dit is aangevuld.');
     }
   } else {
     checks.push(true);
@@ -39,13 +39,13 @@ export function buildDataQualityReport(listing: Listing, context: DataQualityCon
 
   const rentalCompCount = context.rentalEstimate?.compCount;
   const hasRentalComps = typeof rentalCompCount === 'number' && rentalCompCount > 0;
-  addCheck('rental comparable count', hasRentalComps);
+  addCheck('aantal verhuurcomparables', hasRentalComps);
   if (!hasRentalComps) {
-    warnings.push('Rental comparable count is zero or unavailable; rental revenue confidence is reduced.');
+    warnings.push('Aantal verhuurcomparables is nul of onbekend; betrouwbaarheid van verhuuropbrengst is lager.');
   }
 
-  if (context.importEstimate?.confidence === 'low') warnings.push('Import estimate confidence is low.');
-  if (context.rentalEstimate?.confidence === 'low') warnings.push('Rental estimate confidence is low.');
+  if (context.importEstimate?.confidence === 'low') warnings.push('Betrouwbaarheid van importschatting is laag.');
+  if (context.rentalEstimate?.confidence === 'low') warnings.push('Betrouwbaarheid van verhuurschatting is laag.');
 
   const completenessPct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
 

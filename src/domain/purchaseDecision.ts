@@ -50,6 +50,13 @@ function roundScore(value: number): number {
   return Math.round(clamp(value, 0, 100));
 }
 
+function confidenceLabel(confidence: string): string {
+  if (confidence === 'high') return 'hoog';
+  if (confidence === 'medium') return 'gemiddeld';
+  if (confidence === 'low') return 'laag';
+  return confidence;
+}
+
 function dutchMarketMedian(listing: Listing, listings: Listing[], valuation?: NormalizedValuationExport): { medianEur: number; comparableCount: number } {
   const nlComparablePrices = comparableListings(listing, listings)
     .filter((candidate) => candidate.country === 'NL')
@@ -110,35 +117,35 @@ export function decidePurchase(input: PurchaseDecisionInput): PurchaseDecision {
   const blockers: string[] = [];
 
   if (dutchMarketMedianEur > 0) {
-    if (landedCostDeltaToDutchMarketPct <= -10) reasons.push(`Landed cost is ${Math.abs(landedCostDeltaToDutchMarketPct)}% below Dutch market median.`);
-    if (landedCostDeltaToDutchMarketPct > 0 && landedCostDeltaToDutchMarketPct <= 5) reasons.push(`Landed cost is ${landedCostDeltaToDutchMarketPct}% above Dutch market median; negotiation margin is limited.`);
+    if (landedCostDeltaToDutchMarketPct <= -10) reasons.push(`Landingskosten liggen ${Math.abs(landedCostDeltaToDutchMarketPct)}% onder de Nederlandse marktmediaan.`);
+    if (landedCostDeltaToDutchMarketPct > 0 && landedCostDeltaToDutchMarketPct <= 5) reasons.push(`Landingskosten liggen ${landedCostDeltaToDutchMarketPct}% boven de Nederlandse marktmediaan; onderhandelingsruimte is beperkt.`);
   }
 
-  if (netRentalYieldPct >= 12) reasons.push(`Net rental yield is strong at ${netRentalYieldPct}%.`);
-  else if (netRentalYieldPct >= 8) reasons.push(`Net rental yield is workable at ${netRentalYieldPct}%.`);
-  else reasons.push(`Net rental yield is weak at ${netRentalYieldPct}%.`);
+  if (netRentalYieldPct >= 12) reasons.push(`Netto huurrendement is sterk met ${netRentalYieldPct}%.`);
+  else if (netRentalYieldPct >= 8) reasons.push(`Netto huurrendement is werkbaar met ${netRentalYieldPct}%.`);
+  else reasons.push(`Netto huurrendement is zwak met ${netRentalYieldPct}%.`);
 
-  if (nlComparableCount >= 1) reasons.push(`Dutch market anchor uses ${nlComparableCount} NL comparable(s).`);
-  else reasons.push('No close NL comparable; Dutch median falls back to valuation/listing data.');
+  if (nlComparableCount >= 1) reasons.push(`Nederlandse marktanker gebruikt ${nlComparableCount} NL-vergelijking(en).`);
+  else reasons.push('Geen nabije NL-comparable; Nederlandse mediaan valt terug op waarderings-/listingdata.');
 
-  if (dataQualityReport.confidence !== 'low') reasons.push(`Data quality is ${dataQualityReport.confidence} (${dataQualityReport.completenessPct}% complete).`);
-  if (listing.confidence === 'high') reasons.push('Listing source confidence is high.');
-  if (importEstimate.region !== 'domestic-nl') reasons.push(`Import path is ${importEstimate.region} with ${importEstimate.confidence} cost confidence.`);
+  if (dataQualityReport.confidence !== 'low') reasons.push(`Datakwaliteit is ${confidenceLabel(dataQualityReport.confidence)} (${dataQualityReport.completenessPct}% compleet).`);
+  if (listing.confidence === 'high') reasons.push('Betrouwbaarheid van de advertentiebron is hoog.');
+  if (importEstimate.region !== 'domestic-nl') reasons.push(`Importpad is ${importEstimate.region} met ${confidenceLabel(importEstimate.confidence)} kostenbetrouwbaarheid.`);
 
   if (importEstimate.needsManualBpm && typeof listing.bpmOverrideEur !== 'number') {
-    blockers.push('Manual BPM input required before purchase decision.');
+    blockers.push('Handmatige BPM-invoer nodig vóór koopbeslissing.');
   }
   if (landedCostEur > dutchMarketMedianEur * 1.05) {
-    blockers.push('Landed cost is more than 5% above Dutch market median.');
+    blockers.push('Landingskosten liggen meer dan 5% boven de Nederlandse marktmediaan.');
   }
   if (rentalEstimate.compCount === 0) {
-    blockers.push('No rental comparables; rental income estimate needs validation.');
+    blockers.push('Geen verhuurcomparables; verhuuropbrengstschatting moet gevalideerd worden.');
   }
   if (listing.confidence === 'low') {
-    blockers.push('Listing confidence is low; verify seller/listing details before buying.');
+    blockers.push('Listingbetrouwbaarheid is laag; controleer verkoper/listingdetails vóór aankoop.');
   }
   for (const field of dataQualityReport.missingCriticalFields) {
-    if (!blockers.includes(`Missing critical field: ${field}.`)) blockers.push(`Missing critical field: ${field}.`);
+    if (!blockers.includes(`Kritiek veld ontbreekt: ${field}.`)) blockers.push(`Kritiek veld ontbreekt: ${field}.`);
   }
 
   let score =
@@ -206,7 +213,7 @@ export function buildPurchaseDecisions(args: {
     const rentalEstimate = rentalById.get(listing.id);
     const dataQualityReport = qualityById.get(listing.id);
     if (!importEstimate || !netRentalEstimate || !rentalEstimate || !dataQualityReport) {
-      throw new Error(`Missing purchase decision input for listing ${listing.id}`);
+      throw new Error(`Ontbrekende input voor koopbeslissing bij listing ${listing.id}`);
     }
     return decidePurchase({
       listing,

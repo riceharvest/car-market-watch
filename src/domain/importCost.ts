@@ -61,7 +61,7 @@ export function estimateImportCost(listing: Listing, options: ImportCostOptions 
   let confidence: Confidence = profile.confidence;
 
   if (profile.region === 'domestic-nl') {
-    assumptions.push('Domestic NL listing: total import cost set to zero for landed-cost comparison.');
+    assumptions.push('Binnenlandse NL-advertentie: totale importkosten op nul gezet voor vergelijking van landingskosten.');
     return {
       listingId: listing.id,
       originCountry,
@@ -85,30 +85,30 @@ export function estimateImportCost(listing: Listing, options: ImportCostOptions 
 
   if (typeof listing.bpmOverrideEur === 'number') {
     bpmEstimateEur = roundEuro(listing.bpmOverrideEur);
-    assumptions.push('BPM override supplied on listing; using override instead of placeholder BPM calculation.');
+    assumptions.push('BPM-override op listing meegegeven; override gebruikt in plaats van voorlopige BPM-berekening.');
     confidence = listing.confidence === 'high' ? 'high' : 'medium';
   } else if (!listing.co2GPerKm || !listing.firstRegistrationDate) {
     bpmEstimateEur = conservativeBpm(listing);
     adminBufferEur += 500;
     needsManualBpm = true;
     confidence = 'low';
-    assumptions.push('Missing CO2 and/or first registration date; BPM needs manual calculation and conservative BPM/admin buffer is applied.');
+    assumptions.push('CO2 en/of eerste registratiedatum ontbreekt; BPM moet handmatig berekend worden en conservatieve BPM/adminbuffer is toegepast.');
   } else {
     bpmEstimateEur = placeholderBpmFromCo2(listing);
     confidence = profile.region === 'eu-efta' ? 'medium' : 'low';
-    assumptions.push('Placeholder BPM estimate based on CO2 band, fuel type, and first registration age; replace with official BPM integration before purchase.');
+    assumptions.push('Voorlopige BPM-schatting op basis van CO2-band, brandstof en leeftijd sinds eerste registratie; vervang door officiële BPM-integratie vóór aankoop.');
   }
 
   if (profile.region === 'eu-efta') {
     customsDutyEstimateEur = 0;
     vatEstimateEur = 0;
-    assumptions.push('EU/EFTA import: customs duty and import VAT placeholders are zero; Dutch BPM return remains required.');
+    assumptions.push('EU/EFTA-import: invoerrechten en import-btw staan voorlopig op nul; Nederlandse BPM-aangifte blijft vereist.');
   } else {
     customsDutyEstimateEur = roundEuro(listing.priceEur * profile.customsDutyRate);
     vatEstimateEur = roundEuro((listing.priceEur + customsDutyEstimateEur + profile.transportEur) * profile.vatRate);
     needsManualBpm = true;
     confidence = 'low';
-    assumptions.push('Non-EU placeholder includes indicative customs duty and VAT; manual customs/BPM validation required.');
+    assumptions.push('Niet-EU placeholder bevat indicatieve invoerrechten en btw; handmatige douane-/BPM-validatie vereist.');
   }
 
   const totalImportCostEur = roundEuro(
