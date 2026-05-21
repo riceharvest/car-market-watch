@@ -150,7 +150,23 @@ dt { font-size: 0.78rem; }
 dd { margin: 4px 0 0; font-weight: 800; }
 .meta { line-height: 1.5; margin-bottom: 14px; }
 .card-footer { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid rgba(148, 163, 184, .12); padding-top: 14px; color: #94a3b8; font-size: .88rem; }
-.card-footer a { color: #c4b5fd; text-decoration: none; font-weight: 800; }
+.link-stack { display: grid; gap: 9px; margin-top: 12px; }
+.source-link, .rental-link-list a, .table-link-cell a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: #c4b5fd;
+  text-decoration: none;
+  font-weight: 850;
+}
+.source-link { border: 1px solid rgba(167, 139, 250, .24); border-radius: 999px; padding: 8px 11px; background: rgba(124, 58, 237, .1); }
+.rental-link-list { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.rental-link-list > span, .no-rental-links { color: #8a93a5; font-size: .78rem; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
+.rental-link-list a, .table-link-cell a { border-radius: 999px; padding: 6px 9px; color: #93c5fd; background: rgba(59,130,246,.12); border: 1px solid rgba(147, 197, 253, .2); font-size: .78rem; }
+.no-rental-links { text-transform: none; letter-spacing: 0; font-weight: 700; }
+.table-link-cell { min-width: 150px; }
+.table-link-cell a { margin: 0 6px 6px 0; }
 
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 980px; }

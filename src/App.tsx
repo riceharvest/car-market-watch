@@ -12,6 +12,7 @@ import {
   Gauge,
   Globe2,
   Info,
+  ExternalLink,
   Search,
   ShieldCheck,
   Sparkles,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { loadMarketSnapshotFromStaticData } from './data/chunkedSnapshot';
+import { buildListingActionLinks, buildRentalCompetitorLinks, type RentalCompetitorLink } from './domain/rentalCompetitorLinks';
 import { buildMarketSnapshot } from './domain/snapshot';
 import type { DataQualityReport, ImportCostEstimate, Listing, MarketSnapshot, MarketSource, NetRentalEstimate, PurchaseDecision, Valuation } from './types';
 import './styles.css';
@@ -29,7 +31,7 @@ const km = new Intl.NumberFormat('nl-NL');
 const percent = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
 const percentPlain = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 });
 
-type EnrichedListing = { listing: Listing; valuation: Valuation; rentalEstimate?: unknown };
+type EnrichedListing = { listing: Listing; valuation: Valuation; rentalEstimate?: unknown; rentalCompetitorLinks: RentalCompetitorLink[] };
 type PurchaseCandidate = {
   listing: Listing;
   valuation: Valuation;
@@ -37,6 +39,7 @@ type PurchaseCandidate = {
   importEstimate?: ImportCostEstimate;
   netRentalEstimate?: NetRentalEstimate;
   qualityReport?: DataQualityReport;
+  rentalCompetitorLinks: RentalCompetitorLink[];
 };
 type SortKey = 'score' | 'price-low' | 'price-high' | 'newest' | 'delta';
 type RentalEstimate = {
@@ -68,6 +71,7 @@ function enrichFromSnapshot(snapshot: MarketSnapshot): EnrichedListing[] {
         listing,
         valuation,
         rentalEstimate: rentalByListingId.get(listing.id),
+        rentalCompetitorLinks: buildRentalCompetitorLinks(listing, snapshot.rentalComps, snapshot.rentalSources),
       }];
     })
     .sort((a, b) => b.valuation.dealScore - a.valuation.dealScore);
@@ -194,6 +198,29 @@ function StatCard({
   );
 }
 
+function ListingLinks({ listing, rentalLinks }: { listing: Listing; rentalLinks: RentalCompetitorLink[] }) {
+  const sourceLink = buildListingActionLinks(listing).source;
+  return (
+    <div className="link-stack" aria-label={`Links for ${listing.make} ${listing.model}`}>
+      <a className="source-link" href={sourceLink.url} target="_blank" rel="noreferrer">
+        <ExternalLink size={14} /> {sourceLink.label}
+      </a>
+      {rentalLinks.length > 0 ? (
+        <div className="rental-link-list">
+          <span>Rental comps</span>
+          {rentalLinks.map((link) => (
+            <a key={`${listing.id}-${link.source}`} href={link.url} target="_blank" rel="noreferrer" title={link.notes}>
+              {link.label} · {link.matchType === 'same-model' ? 'same model' : 'close spec'} · {eur.format(link.dailyRateEur)}/day
+            </a>
+          ))}
+        </div>
+      ) : (
+        <span className="no-rental-links">No rental company match in snapshot</span>
+      )}
+    </div>
+  );
+}
+
 function SelectControl({
   label,
   value,
@@ -247,8 +274,8 @@ function ListingCard({ item }: { item: EnrichedListing }) {
       <p className="meta">{listing.year} · {listing.fuel} · {listing.transmission} · {listing.location} · {listing.sellerType}</p>
       <div className="card-footer">
         <span>{valuation.daysOnMarket} days watched</span>
-        <a href={listing.url} target="_blank" rel="noreferrer">Open source</a>
       </div>
+      <ListingLinks listing={listing} rentalLinks={item.rentalCompetitorLinks} />
     </article>
   );
 }
@@ -335,6 +362,7 @@ export default function App() {
           importEstimate: importById.get(decision.listingId),
           netRentalEstimate: netRentalById.get(decision.listingId),
           qualityReport: qualityById.get(decision.listingId),
+          rentalCompetitorLinks: buildRentalCompetitorLinks(listing, snapshot.rentalComps, snapshot.rentalSources),
         }];
       })
       .sort((a, b) => b.decision.purchaseScore - a.decision.purchaseScore);
@@ -640,7 +668,10 @@ export default function App() {
                   <p className="quality-line">Missing: {selectedPurchaseCandidate.qualityReport.missingCriticalFields.join(', ')}</p>
                 ) : null}
               </div>
-              <a className="detail-link" href={selectedPurchaseCandidate.listing.url} target="_blank" rel="noreferrer">Open source listing</a>
+              <div className="detail-block">
+                <h3><ExternalLink size={17} /> Listing and rental-market links</h3>
+                <ListingLinks listing={selectedPurchaseCandidate.listing} rentalLinks={selectedPurchaseCandidate.rentalCompetitorLinks} />
+              </div>
             </aside>
           )}
         </div>
@@ -731,6 +762,7 @@ export default function App() {
             <thead>
               <tr>
                 <th>Listing</th>
+                <th>Links</th>
                 <th>Source</th>
                 <th>Ask</th>
                 <th>Median</th>
@@ -748,6 +780,12 @@ export default function App() {
                 return (
                   <tr key={`row-${listing.id}`}>
                     <td><strong>{listing.make} {listing.model}</strong><span>{listing.year} · {km.format(listing.mileageKm)} km · {listing.location}</span></td>
+                    <td className="table-link-cell">
+                      <a href={listing.url} target="_blank" rel="noreferrer">Actual</a>
+                      {item.rentalCompetitorLinks.slice(0, 2).map((link) => (
+                        <a key={`table-${listing.id}-${link.source}`} href={link.url} target="_blank" rel="noreferrer">{link.label}</a>
+                      ))}
+                    </td>
                     <td>{formatSource(listing.source)}<span>{listing.country}</span></td>
                     <td>{eur.format(listing.priceEur)}</td>
                     <td>{eur.format(valuation.marketMedianEur)}</td>
