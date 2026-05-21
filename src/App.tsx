@@ -725,18 +725,18 @@ export default function App() {
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={340}>
               <BarChart data={chartData} margin={{ left: 0, right: 8, top: 10, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222936" vertical={false} />
-                <XAxis dataKey="name" stroke="#8a93a5" tick={{ fontSize: 12 }} interval={0} angle={-10} height={58} />
-                <YAxis stroke="#8a93a5" tickFormatter={(value) => `€${Number(value) / 1000}k`} width={58} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#cfd8dc" vertical={false} />
+                <XAxis dataKey="name" stroke="#607d8b" tick={{ fontSize: 12 }} interval={0} angle={-10} height={58} />
+                <YAxis stroke="#607d8b" tickFormatter={(value) => `€${Number(value) / 1000}k`} width={58} />
                 <Tooltip
-                  cursor={{ fill: 'rgba(124, 58, 237, 0.08)' }}
+                  cursor={{ fill: 'rgba(25, 118, 210, 0.08)' }}
                   formatter={(value, name) => [eur.format(Number(value)), name === 'asking' ? 'Asking price' : 'Comparable median']}
-                  contentStyle={{ background: '#10151f', border: '1px solid #273143', borderRadius: 14, color: '#eef2ff' }}
-                  labelStyle={{ color: '#c4b5fd' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #cfd8dc', borderRadius: 4, color: '#263238' }}
+                  labelStyle={{ color: '#1976d2' }}
                 />
-                <Legend wrapperStyle={{ color: '#9ca3af' }} />
-                <Bar dataKey="median" fill="#334155" radius={[7, 7, 0, 0]} name="Comparable median" />
-                <Bar dataKey="asking" fill="#8b5cf6" radius={[7, 7, 0, 0]} name="Asking price" />
+                <Legend wrapperStyle={{ color: '#607d8b' }} />
+                <Bar dataKey="median" fill="#90a4ae" radius={[3, 3, 0, 0]} name="Comparable median" />
+                <Bar dataKey="asking" fill="#1976d2" radius={[3, 3, 0, 0]} name="Asking price" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
