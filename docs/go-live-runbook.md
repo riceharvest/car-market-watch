@@ -34,6 +34,7 @@ Current static UI builds without secrets. Configure these only when enabling the
 
 | Variable | Required now? | Where | Notes |
 | --- | --- | --- | --- |
+| `ACCESS_PASSWORD` | Yes for private launch | Vercel Project Settings -> Environment Variables | Server-side middleware password for the whole dashboard. Current launch value should be set in Vercel only, not committed. |
 | `DATABASE_URL` | No | Vercel Project Settings -> Environment Variables | Future Postgres/Neon connection for persisted listings. Never expose this to client code. |
 | `SCRAPER_USER_AGENT` | Recommended for manual smoke | GitHub Actions repository variable and future worker runtime | Use an honest UA with contact info, e.g. `CarMarketWatch/0.1 contact@example.com`. |
 | `VITE_PUBLIC_APP_ENV` | Optional | Vercel | Safe client-side label such as `production` or `preview`; only `VITE_` variables are exposed to the Vite client bundle. |
@@ -45,7 +46,7 @@ For Vercel, add production values first, then preview values if they differ. Do 
 
 Before enabling persisted data or a write-capable dashboard:
 
-- Keep the browser app behind Vercel Deployment Protection, an identity-aware proxy, or app-level auth; default to private until data sensitivity is reviewed.
+- Keep the browser app behind the included `ACCESS_PASSWORD` Vercel middleware gate, Vercel Deployment Protection, or an identity-aware proxy; default to private until data sensitivity is reviewed.
 - Put all `/api/*` routes behind auth middleware that resolves server-side user/session context. The client must not provide `owner_user_id` directly.
 - Implement the dependency-free contracts in `src/server/contracts.ts` before adding framework-specific handlers, and keep response shapes covered by tests.
 - Apply `db/schema.sql` to a private Neon/Postgres database only from a migration step or admin workstation, not from Vercel client code.

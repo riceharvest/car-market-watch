@@ -77,7 +77,7 @@ Scheduled/manual live ingestion is wired in `.github/workflows/live-ingestion.ym
 
 ## Deploy on Vercel
 
-This repo includes `vercel.json` for a static Vite deployment:
+This repo includes `vercel.json` for a static Vite deployment and a server-side `ACCESS_PASSWORD` middleware gate for private launch:
 
 - Framework preset: `Vite`
 - Install command: `pnpm install --frozen-lockfile`
@@ -114,6 +114,7 @@ Important conventions:
 - `INGESTION_DB_MODE=json` keeps the current artifact workflow; `INGESTION_DB_MODE=db` is the future worker mode that requires `DATABASE_URL`.
 - `SCRAPER_USER_AGENT` should identify the crawler honestly and include contact information.
 - Only `VITE_*` variables are exposed to the client bundle.
+- Set `ACCESS_PASSWORD` in Vercel for the private dashboard gate; do not commit the actual password.
 
 See [`docs/production-readiness.md`](docs/production-readiness.md) for the DB/API/auth scaffold and remaining production wiring.
 
