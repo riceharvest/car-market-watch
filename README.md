@@ -73,7 +73,7 @@ pnpm build
 
 The live runner currently uses public search-page payloads from AutoScout24, Marktplaats, and 2dehands. It expands configured searches across up to 3 result pages by default, with `SCRAPER_PAGE_COUNT`, `SCRAPER_REQUEST_DELAY_MS`, and `SCRAPER_MAX_LISTINGS_PER_SEARCH_SOURCE` available for manual runs. Gaspedaal is reachable but not normalized yet, Kleinanzeigen returned 403 from this environment, and mobile.de stays official-API-only.
 
-Scheduled/manual live ingestion is scaffolded in `.github/workflows/live-ingestion.yml`. It runs outside Vercel, defaults to a conservative weekly cadence and one page per search/source, uploads a sanitized 14-day artifact, and does not commit or deploy generated data by default.
+Scheduled/manual live ingestion is wired in `.github/workflows/live-ingestion.yml`. It runs outside Vercel, defaults to a conservative daily off-peak cadence and one page per search/source, uploads a sanitized 14-day artifact, rebuilds the chunked static dashboard data, and commits refreshed `public/data/` chunks back to `main` when `publish` is enabled. If the repository has a `DATABASE_URL` secret, the same run also writes listings and price-history rows to Postgres/Neon.
 
 ## Deploy on Vercel
 

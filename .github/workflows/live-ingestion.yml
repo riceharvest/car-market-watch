@@ -1,4 +1,4 @@
-name: Live ingestion artifact
+name: Live ingestion publish
 
 on:
   workflow_dispatch:
@@ -15,34 +15,43 @@ on:
         description: 'Optional single saved search id for a narrow manual run'
         required: false
         default: ''
+      publish:
+        description: 'Commit refreshed public/data snapshot chunks back to main'
+        required: false
+        default: 'true'
   schedule:
-    # Conservative scaffold: weekly, off-peak UTC. Disable or edit before production use.
-    - cron: '17 4 * * 2'
+    # Daily off-peak UTC. Keep request limits conservative; the job runs outside Vercel builds.
+    - cron: '17 4 * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 defaults:
   run:
     shell: bash
 
 concurrency:
-  group: live-ingestion-artifact
+  group: live-ingestion-publish
   cancel-in-progress: false
 
 jobs:
   live-ingestion:
-    name: Run allowlisted live ingestion outside Vercel
+    name: Run allowlisted live ingestion and publish snapshot
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       SCRAPER_PAGE_COUNT: ${{ github.event.inputs.page_count || '1' }}
       SCRAPER_REQUEST_DELAY_MS: ${{ github.event.inputs.request_delay_ms || '1500' }}
       SCRAPER_USER_AGENT: CarMarketWatchBot/0.1 (+private research; low-rate cached market snapshot)
       SEARCH_ID: ${{ github.event.inputs.search_id || '' }}
+      PUBLISH_SNAPSHOT: ${{ github.event.inputs.publish || 'true' }}
+      INGESTION_DB_MODE: ${{ secrets.DATABASE_URL != '' && 'db' || 'json' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -66,6 +75,12 @@ jobs:
             args+=("--search=${SEARCH_ID}")
           fi
           pnpm exec tsx scripts/run-ingestion.ts "${args[@]}"
+
+      - name: Build refreshed static snapshot chunks
+        run: pnpm run data:build
+
+      - name: Verify generated dashboard data contract
+        run: pnpm exec vitest run tests/chunkedSnapshot.test.ts tests/snapshot.test.ts tests/rentalCompetitorLinks.test.ts
 
       - name: Create sanitized artifact bundle
         run: |
@@ -121,3 +136,17 @@ jobs:
           path: artifacts/ingestion-upload/latest-live-ingestion.sanitized.json
           if-no-files-found: error
           retention-days: 14
+
+      - name: Commit refreshed public snapshot data
+        if: env.PUBLISH_SNAPSHOT == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/data/market-snapshot-manifest.json public/data/chunks/
+          if git diff --cached --quiet; then
+            echo 'No public snapshot changes to publish.'
+            exit 0
+          fi
+          git commit -m "chore(data): publish refreshed market snapshot"
+          git push

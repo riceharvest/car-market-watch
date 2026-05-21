@@ -132,22 +132,21 @@ See [`storage-strategy.md`](storage-strategy.md) for the JSON artifact to future
 
 ### Current GitHub Actions live-ingestion scaffold
 
-The repository includes `.github/workflows/live-ingestion.yml` as a conservative worker scaffold that runs outside Vercel:
+The repository includes `.github/workflows/live-ingestion.yml` as the daily worker/publisher that runs outside Vercel:
 
-1. It is triggered manually with `workflow_dispatch` or by a weekly Tuesday 04:17 UTC schedule.
-2. It checks out the repository with read-only `contents` permissions, installs dependencies with pnpm, and runs `scripts/run-ingestion.ts --live --write`.
-3. Manual runs can override `page_count`, `request_delay_ms`, and optionally narrow to one `search_id`.
-4. Scheduled runs default to `SCRAPER_PAGE_COUNT=1` and `SCRAPER_REQUEST_DELAY_MS=1500`.
-5. It uploads only `artifacts/ingestion-upload/latest-live-ingestion.sanitized.json` as a 14-day GitHub Actions artifact.
-6. It does **not** commit generated snapshots, push branches, deploy Vercel, or store secrets.
+1. It is triggered manually with `workflow_dispatch` or by a daily 04:17 UTC schedule.
+2. It checks out the repository with `contents: write`, installs dependencies with pnpm, and runs `scripts/run-ingestion.ts --live --write`.
+3. If a `DATABASE_URL` repository secret is configured, it sets `INGESTION_DB_MODE=db` so the same run persists listings and price-history rows to Postgres/Neon.
+4. It rebuilds the chunked static snapshot with `pnpm run data:build`, runs focused snapshot contract tests, then uploads `artifacts/ingestion-upload/latest-live-ingestion.sanitized.json` as a 14-day GitHub Actions artifact.
+5. When the manual `publish` input is `true` (default, including scheduled runs), it commits only `public/data/market-snapshot-manifest.json` and `public/data/chunks/` back to `main`. Raw marketplace observations stay out of git and out of the uploaded artifact.
 
-The sanitized artifact intentionally drops `rawObservations` payloads and keeps normalized public listing fields plus the full `run` metadata for audit/review. Treat the uploaded artifact as an operational review artifact, not an automatic publication step. Promotion into the chunked static snapshot (`public/data/market-snapshot-manifest.json` plus `public/data/chunks/`), object storage, or a database should be a separate reviewed process.
+The sanitized artifact intentionally drops `rawObservations` payloads and keeps normalized public listing fields plus the full `run` metadata for audit/review. Scheduled publication is deliberately limited to dashboard-ready static chunks; raw ingestion artifacts remain ephemeral Actions artifacts unless a DB secret is configured.
 
 Live-mode compliance guardrails:
 
 - Only the adapters in `reachableLiveSources` run (`autoscout24`, `marktplaats`, `2dehands`).
 - `blockedOrGatedLiveSources` are reported in notes/statuses and must not be bypassed (`gaspedaal`, `kleinanzeigen`, `mobile-de-api` until their documented reasons change).
-- Do not add credentials or private API tokens to this scaffold.
+- Keep crawler credentials out of this workflow; only `DATABASE_URL` is read, and only server-side in the GitHub Actions runner.
 - If source statuses show `error` for repeated 403/429/CAPTCHA/parser failures, disable or narrow the source before the next scheduled run.
 - Keep Vercel builds consuming existing snapshots only; never move live crawling into `pnpm build`.
 

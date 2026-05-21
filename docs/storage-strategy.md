@@ -10,16 +10,16 @@ Car Market Watch should stay static and low-risk until ingestion is proven. Stor
 - Do not commit raw marketplace HTML or seller/contact data.
 - Keep snapshots small and dashboard-oriented: normalized listings, run metadata, confidence notes, and derived scores.
 
-## Stage 2: scheduled GitHub Action artifact
+## Stage 2: scheduled GitHub Action publication
 
-When the manual runner is stable, use `.github/workflows/live-ingestion.yml` as the scheduled/manual scaffold:
+`.github/workflows/live-ingestion.yml` is the scheduled/manual ingestion publisher:
 
-1. Checks out the repository and installs dependencies.
+1. Checks out the repository with `contents: write` and installs dependencies.
 2. Runs `scripts/run-ingestion.ts --live --write` outside Vercel with allowlisted live adapters only.
 3. Defaults scheduled runs to one page per source/search and a 1500 ms request delay; manual runs can override those inputs and optionally pass one saved search ID.
-4. Uploads `artifacts/ingestion-upload/latest-live-ingestion.sanitized.json` as a 14-day GitHub Actions artifact.
-5. Does not commit generated data, push branches, deploy Vercel, or require secrets by default.
-6. Optionally publishes the latest sanitized snapshot to object storage or commits only reviewed fixture/snapshot updates in a separate, explicit process.
+4. Writes to Postgres/Neon automatically when the repository has a `DATABASE_URL` secret; otherwise it remains JSON/static-only.
+5. Rebuilds `public/data/market-snapshot-manifest.json` plus `public/data/chunks/`, runs focused snapshot contract tests, and uploads `artifacts/ingestion-upload/latest-live-ingestion.sanitized.json` as a 14-day GitHub Actions artifact.
+6. Commits only refreshed `public/data/` dashboard chunks back to `main` when the `publish` input is enabled; raw observations stay out of git.
 
 Operational rules:
 
