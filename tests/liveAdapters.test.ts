@@ -102,4 +102,28 @@ describe('live marketplace parsers', () => {
     expect(new Set(savedSearches.map((item) => item.model)).size).toBeGreaterThanOrEqual(38);
     expect(savedSearches.every((search) => search.queryUrlBySource.autoscout24 && search.queryUrlBySource.marktplaats && search.queryUrlBySource['2dehands'])).toBe(true);
   });
+
+  it('includes Audi A4 as a broad Benelux/DE premium watch search', () => {
+    const audiA4 = savedSearches.find((search) => search.make === 'Audi' && search.model === 'A4');
+
+    expect(audiA4).toEqual(
+      expect.objectContaining({
+        id: 'search-audi-a4-benelux',
+        maxPriceEur: 60000,
+        maxMileageKm: 230000,
+        countries: ['NL', 'BE', 'DE'],
+        fuels: ['petrol', 'diesel', 'hybrid', 'unknown'],
+        transmissions: ['manual', 'automatic', 'unknown'],
+      }),
+    );
+    expect(audiA4?.queryUrlBySource).toEqual(
+      expect.objectContaining({
+        autoscout24: 'https://www.autoscout24.nl/lst/audi/a4?atype=C&cy=NL&fregfrom=2015',
+        gaspedaal: 'https://www.gaspedaal.nl/zoeken?merk=audi&model=a4&bmin=2015',
+        marktplaats: 'https://www.marktplaats.nl/l/auto-s/audi/q/a4/',
+        '2dehands': 'https://www.2dehands.be/l/auto-s/audi/q/a4/',
+        kleinanzeigen: 'https://www.kleinanzeigen.de/s-autos/audi-a4/k0c216',
+      }),
+    );
+  });
 });

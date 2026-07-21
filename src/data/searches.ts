@@ -131,6 +131,7 @@ const searchSpecs: SearchSpec[] = [
   { make: 'BMW', model: '3 Serie', makeSlug: 'bmw', autoScoutModelSlug: '3-serie', marketplaceBrandSlug: 'bmw', marketplaceQuery: '3+serie', category: 'premium', maxPriceEur: 60000 },
   { make: 'Mercedes-Benz', model: 'A-Klasse', makeSlug: 'mercedes-benz', autoScoutModelSlug: 'a-klasse', marketplaceBrandSlug: 'mercedes-benz', marketplaceQuery: 'a-klasse', category: 'premium', maxPriceEur: 55000 },
   { make: 'Audi', model: 'A3', makeSlug: 'audi', autoScoutModelSlug: 'a3', marketplaceBrandSlug: 'audi', marketplaceQuery: 'a3', category: 'premium', maxPriceEur: 55000 },
+  { make: 'Audi', model: 'A4', makeSlug: 'audi', autoScoutModelSlug: 'a4', marketplaceBrandSlug: 'audi', marketplaceQuery: 'a4', category: 'premium', maxPriceEur: 60000, fuels: ['petrol', 'diesel', 'hybrid', 'unknown'], transmissions: ['manual', 'automatic', 'unknown'], kleinanzeigenQuery: 'audi-a4' },
   { make: 'Volvo', model: 'V40', makeSlug: 'volvo', autoScoutModelSlug: 'v40', marketplaceBrandSlug: 'volvo', marketplaceQuery: 'v40', category: 'premium', maxPriceEur: 42000 },
 ];
 
